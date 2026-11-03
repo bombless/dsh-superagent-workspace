@@ -76,15 +76,31 @@
         </div>
     </div>
     <div class="controls-hint">
-        控制说明：<kbd>A</kbd> / <kbd>D</kbd> 或 <kbd>←</kbd> / <kbd>→</kbd> 移动 | <kbd>W</kbd> 或 <kbd>空格</kbd> 跳跃（可二段跳） | <kbd>J</kbd> / <kbd>K</kbd> 发射 Token 能量弹 | <kbd>R</kbd> 重新开始
+        控制说明：<kbd>A</kbd>/<kbd>D</kbd> 移动 | <kbd>W</kbd>/<kbd>空格</kbd> 跳跃 | <kbd>J</kbd>/<kbd>K</kbd> 发射 | <kbd>0</kbd>-<kbd>9</kbd> 随时切换10种精美肥鱼皮肤 | <kbd>R</kbd> 重置
     </div>
 
     <script>
-        // 加载外部大肥鱼图片素材
-        const fishImg = new Image();
-        fishImg.src = 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=200&q=80';
-        let fishImgLoaded = false;
-        fishImg.onload = () => { fishImgLoaded = true; };
+        // 10种不同的精美肥鱼外部图像素材与皮肤配置（可通过按 0-9 键随时切换）
+        const fishSkins = [
+            { name: '0号：赛博深蓝肥鱼', url: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=200&q=80' },
+            { name: '1号：霓虹粉红胖鱼', url: 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=200&q=80' },
+            { name: '2号：黄金算力锦鲤', url: 'https://images.unsplash.com/photo-1535591273668-578e31129994?auto=format&fit=crop&w=200&q=80' },
+            { name: '3号：翡翠开源巨鳐', url: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=200&sat=50&hue=120&q=80' },
+            { name: '4号：紫气东来大鲨', url: 'https://images.unsplash.com/photo-1560275619-4662e36fa65c?auto=format&fit=crop&w=200&q=80' },
+            { name: '5号：烈焰算力核心', url: 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=200&sat=100&hue=-50&q=80' },
+            { name: '6号：极光钛白灵鱼', url: 'https://images.unsplash.com/photo-1535591273668-578e31129994?auto=format&fit=crop&w=200&brightness=50&q=80' },
+            { name: '7号：琥珀量子胖鲨', url: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=200&hue=30&q=80' },
+            { name: '8号：暗夜星空墨鱼', url: 'https://images.unsplash.com/photo-1560275619-4662e36fa65c?auto=format&fit=crop&w=200&brightness=-30&q=80' },
+            { name: '9号：超维霓虹幻鱼', url: 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&w=200&hue=280&q=80' }
+        ];
+
+        let currentSkinIndex = 0;
+        const loadedSkins = fishSkins.map(skin => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = skin.url;
+            return img;
+        });
 
         // 备用：若外部加载失败，使用备用 SVG 绘制
         const fallbackFishImg = new Image();
@@ -127,6 +143,9 @@
             keys[e.key.toLowerCase()] = true;
             keys[e.key] = true;
 
+            if (e.key >= '0' && e.key <= '9') {
+                currentSkinIndex = parseInt(e.key);
+            }
             if (e.key === 'r' || e.key === 'R') {
                 resetGame();
             }
@@ -382,7 +401,7 @@
 
             // 更新 HUD
             let hearts = '❤️'.repeat(player.hp) + '🖤'.repeat(player.maxHp - player.hp);
-            document.getElementById('statusHUD').innerHTML = `生命: ${hearts} | Token: 🪙 ${player.tokens} | 算力碎片: 💎 ${player.shards}/3`;
+            document.getElementById('statusHUD').innerHTML = `生命: ${hearts} | 皮肤[${currentSkinIndex}]: ${fishSkins[currentSkinIndex].name.split('：')[1]} | Token: 🪙 ${player.tokens}`;
             let levelNames = ["1 - 算力基石", "2 - 万亿参数迷宫", "3 - 开源之海"];
             document.getElementById('levelHUD').innerHTML = `关卡: ${levelNames[currentLevel - 1]}`;
         }
@@ -473,14 +492,15 @@
                 ctx.fillRect(proj.x, proj.y, proj.width, proj.height);
             });
 
-            // 使用外部图片素材绘制大肥鱼角色
+            // 使用外部图片素材绘制大肥鱼角色（支持按 0-9 随时切换10种不同皮肤）
             if (player.invincibleTimer % 4 < 2) {
                 ctx.save();
                 ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
                 if (player.facing === 'left') {
                     ctx.scale(-1, 1);
                 }
-                const activeImg = fishImgLoaded ? fishImg : fallbackFishImg;
+                const skinImg = loadedSkins[currentSkinIndex];
+                const activeImg = (skinImg && skinImg.complete && skinImg.naturalWidth !== 0) ? skinImg : fallbackFishImg;
                 ctx.drawImage(activeImg, -player.width/2 - 8, -player.height/2 - 8, player.width + 16, player.height + 16);
                 ctx.restore();
             }
