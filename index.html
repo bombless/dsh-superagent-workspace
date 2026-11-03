@@ -76,10 +76,20 @@
         </div>
     </div>
     <div class="controls-hint">
-        控制说明：<kbd>A</kbd> / <kbd>D</kbd> 或 <kbd>←</kbd> / <kbd>→</kbd> 移动 | <kbd>W</kbd> 或 <kbd>空格</kbd> 跳跃（可二段跳） | <kbd>J</kbd> 或 <kbd>K</kbd> 发射 Token 能量弹 | <kbd>R</kbd> 重新开始
+        控制说明：<kbd>A</kbd> / <kbd>D</kbd> 或 <kbd>←</kbd> / <kbd>→</kbd> 移动 | <kbd>W</kbd> 或 <kbd>空格</kbd> 跳跃（可二段跳） | <kbd>J</kbd> / <kbd>K</kbd> 发射 Token 能量弹 | <kbd>R</kbd> 重新开始
     </div>
 
     <script>
+        // 加载外部大肥鱼图片素材
+        const fishImg = new Image();
+        fishImg.src = 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=200&q=80';
+        let fishImgLoaded = false;
+        fishImg.onload = () => { fishImgLoaded = true; };
+
+        // 备用：若外部加载失败，使用备用 SVG 绘制
+        const fallbackFishImg = new Image();
+        fallbackFishImg.src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" width="120" height="80"><ellipse cx="60" cy="40" rx="38" ry="28" fill="#3b82f6" stroke="#93c5fd" stroke-width="3"/><path d="M25 40 L5 20 L12 40 L5 60 Z" fill="#2563eb"/><circle cx="82" cy="32" r="9" fill="#ffffff"/><circle cx="84" cy="31" r="4" fill="#0f172a"/></svg>');
+
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
@@ -463,96 +473,15 @@
                 ctx.fillRect(proj.x, proj.y, proj.width, proj.height);
             });
 
-            // 绘制玩家（DeepSeek 大肥鱼皮肤 - 高清风格大肥鱼）
-            if (player.invincibleTimer % 4 < 2) { // 受击闪烁
+            // 使用外部图片素材绘制大肥鱼角色
+            if (player.invincibleTimer % 4 < 2) {
                 ctx.save();
                 ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
                 if (player.facing === 'left') {
                     ctx.scale(-1, 1);
                 }
-
-                // 鱼身主渐变色 (DeepSeek 科技蓝青渐变)
-                let bodyGrad = ctx.createRadialGradient(-2, -4, 2, 0, 0, 20);
-                bodyGrad.addColorStop(0, '#60a5fa');
-                bodyGrad.addColorStop(0.5, '#3b82f6');
-                bodyGrad.addColorStop(1, '#1d4ed8');
-                ctx.fillStyle = bodyGrad;
-
-                // 肥鱼圆润身躯 (Ellipse / Bezier body)
-                ctx.beginPath();
-                ctx.ellipse(0, 2, 17, 13, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.lineWidth = 1.5;
-                ctx.strokeStyle = '#93c5fd';
-                ctx.stroke();
-
-                // 鱼肚光泽 / 算力核心底色
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-                ctx.beginPath();
-                ctx.ellipse(2, 5, 11, 7, 0, 0, Math.PI * 2);
-                ctx.fill();
-
-                // 尾鳍 (Tail fin)
-                ctx.fillStyle = '#2563eb';
-                ctx.beginPath();
-                ctx.moveTo(-15, 2);
-                ctx.lineTo(-24, -8);
-                ctx.lineTo(-21, 2);
-                ctx.lineTo(-24, 12);
-                ctx.closePath();
-                ctx.fill();
-                ctx.strokeStyle = '#93c5fd';
-                ctx.stroke();
-
-                // 背鳍 (Dorsal fin)
-                ctx.fillStyle = '#3b82f6';
-                ctx.beginPath();
-                ctx.moveTo(-4, -13);
-                ctx.lineTo(4, -18);
-                ctx.lineTo(8, -11);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-
-                // 胸鳍 (Pectoral fin)
-                ctx.fillStyle = '#60a5fa';
-                ctx.beginPath();
-                ctx.ellipse(-2, 8, 5, 3, Math.PI / 4, 0, Math.PI * 2);
-                ctx.fill();
-
-                // 鱼眼：科技大眼与高光
-                ctx.fillStyle = '#ffffff';
-                ctx.beginPath();
-                ctx.arc(8, -3, 5, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = '#1e3a8a';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-
-                // 瞳孔（DeepSeek 蓝色核心瞳孔）
-                ctx.fillStyle = '#0f172a';
-                ctx.beginPath();
-                ctx.arc(9, -3, 2.5, 0, Math.PI * 2);
-                ctx.fill();
-                // 瞳孔高光
-                ctx.fillStyle = '#ffffff';
-                ctx.beginPath();
-                ctx.arc(10, -4, 1, 0, Math.PI * 2);
-                ctx.fill();
-
-                // 腮红 / 科技呼吸灯
-                ctx.fillStyle = 'rgba(147, 197, 253, 0.6)';
-                ctx.beginPath();
-                ctx.arc(4, 3, 2.5, 0, Math.PI * 2);
-                ctx.fill();
-
-                // 吹出的微小 Token 泡泡/气泡装饰
-                ctx.fillStyle = 'rgba(96, 165, 250, 0.7)';
-                ctx.beginPath();
-                ctx.arc(17, -1, 2, 0, Math.PI * 2);
-                ctx.arc(21, -5, 1.5, 0, Math.PI * 2);
-                ctx.fill();
-
+                const activeImg = fishImgLoaded ? fishImg : fallbackFishImg;
+                ctx.drawImage(activeImg, -player.width/2 - 8, -player.height/2 - 8, player.width + 16, player.height + 16);
                 ctx.restore();
             }
 
