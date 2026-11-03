@@ -76,7 +76,7 @@
         </div>
     </div>
     <div class="controls-hint">
-        控制说明：<kbd>A</kbd> / <kbd>D</kbd> 或 <kbd>←</kbd> / <kbd>→</kbd> 移动 | <kbd>W</kbd> 或 <kbd>空格</kbd> 跳跃（可二段跳） | <kbd>J</kbd> 或 <kbd>K</kbd> 发射 Token 能量弹 | <kbd>R</kbd> 重新开始
+        控制说明：<kbd>A</kbd> / <kbd>D</kbd> 或 <kbd>←</kbd> / <kbd>→</kbd> 移动 | <kbd>W</kbd> 或 <kbd>空格</kbd> 跳跃（可二段跳） | <kbd>J</kbd> / <kbd>K</kbd> 发射 Token | <kbd>0</kbd>-<kbd>9</kbd> 切换角色外观 | <kbd>R</kbd> 重新开始
     </div>
 
     <script>
@@ -108,13 +108,14 @@
             invincibleTimer: 0
         };
 
-        // 加载大肥鱼素材图片
-        const fishImg = new Image();
-        fishImg.src = 'fat_fish.png';
-        let fishLoaded = false;
-        fishImg.onload = () => {
-            fishLoaded = true;
-        };
+        // 加载 10 个不同的鱼素材图片
+        const fishImages = [];
+        for (let i = 0; i < 10; i++) {
+            const img = new Image();
+            img.src = `fish_${i}.png`;
+            fishImages.push(img);
+        }
+        let currentFishIndex = 3; // 默认使用第3个（Whiscash大肥鱼）
 
         // 按键状态
         const keys = {};
@@ -127,6 +128,10 @@
 
             if (e.key === 'r' || e.key === 'R') {
                 resetGame();
+            }
+            // 0-9 切换鱼素材
+            if (e.key >= '0' && e.key <= '9') {
+                currentFishIndex = parseInt(e.key);
             }
             if ((e.key === 'j' || e.key === 'J' || e.key === 'k' || e.key === 'K') && gameState === 'PLAYING') {
                 shootToken();
@@ -479,8 +484,9 @@
                     ctx.scale(-1, 1);
                 }
 
-                if (fishLoaded) {
-                    ctx.drawImage(fishImg, -player.width / 2 - 4, -player.height / 2 - 6, player.width + 8, player.height + 12);
+                const currentImg = fishImages[currentFishIndex];
+                if (currentImg && currentImg.complete) {
+                    ctx.drawImage(currentImg, -player.width / 2 - 6, -player.height / 2 - 8, player.width + 12, player.height + 16);
                 } else {
                     // 降级兜底：如果图片未加载完，用简易图形
                     ctx.fillStyle = '#3b82f6';
