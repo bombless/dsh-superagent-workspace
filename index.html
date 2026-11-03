@@ -76,20 +76,10 @@
         </div>
     </div>
     <div class="controls-hint">
-        控制说明：<kbd>A</kbd> / <kbd>D</kbd> / <kbd>←</kbd> / <kbd>→</kbd> 移动 | <kbd>W</kbd> / <kbd>空格</kbd> 跳跃（可二段跳） | <kbd>J</kbd> / <kbd>K</kbd> 发射 Token 能量弹 | <kbd>0</kbd>-<kbd>9</kbd> 随时切换10种鱼外观 | <kbd>R</kbd> 重新开始
+        控制说明：<kbd>A</kbd> / <kbd>D</kbd> / <kbd>←</kbd> / <kbd>→</kbd> 移动 | <kbd>W</kbd> / <kbd>空格</kbd> 跳跃 | <kbd>J</kbd> / <kbd>K</kbd> 发射 Token | <kbd>0</kbd>-<kbd>9</kbd> 随时切换10种鱼外观 | <kbd>R</kbd> 重新开始
     </div>
 
     <script>
-        // 加载外部大肥鱼图片素材
-        const fishImg = new Image();
-        fishImg.src = 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=200&q=80';
-        let fishImgLoaded = false;
-        fishImg.onload = () => { fishImgLoaded = true; };
-
-        // 备用：若外部加载失败，使用备用 SVG 绘制
-        const fallbackFishImg = new Image();
-        fallbackFishImg.src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" width="120" height="80"><ellipse cx="60" cy="40" rx="38" ry="28" fill="#3b82f6" stroke="#93c5fd" stroke-width="3"/><path d="M25 40 L5 20 L12 40 L5 60 Z" fill="#2563eb"/><circle cx="82" cy="32" r="9" fill="#ffffff"/><circle cx="84" cy="31" r="4" fill="#0f172a"/></svg>');
-
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
 
@@ -486,21 +476,25 @@
                 ctx.fillRect(proj.x, proj.y, proj.width, proj.height);
             });
 
-            // 绘制玩家（加载自网上素材的大肥鱼角色，支持 0-9 切换）
+            // 绘制玩家（加载自网上素材的大肥鱼角色）
             if (player.invincibleTimer % 4 < 2) { // 受击闪烁
                 ctx.save();
                 ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
                 if (player.facing === 'left') {
                     ctx.scale(-1, 1);
                 }
+
                 const currentImg = fishImages[currentFishIndex];
                 if (currentImg && currentImg.complete) {
                     ctx.drawImage(currentImg, -player.width / 2 - 6, -player.height / 2 - 8, player.width + 12, player.height + 16);
                 } else {
-                    // 降级兜底：如果图片未加载完，用简易图形或备用图片
-                    const activeImg = fishImgLoaded ? fishImg : fallbackFishImg;
-                    ctx.drawImage(activeImg, -player.width/2 - 8, -player.height/2 - 8, player.width + 16, player.height + 16);
+                    // 降级兜底：如果图片未加载完，用简易图形
+                    ctx.fillStyle = '#3b82f6';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, player.width/2, player.height/2, 0, 0, Math.PI * 2);
+                    ctx.fill();
                 }
+
                 ctx.restore();
             }
 
