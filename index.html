@@ -304,6 +304,11 @@
 
             // 边界检查
             if (player.x < 0) player.x = 0;
+            let levelWidths = [1000, 1200, 1400];
+            let currentWidth = levelWidths[currentLevel - 1] || 1000;
+            if (player.x > currentWidth - player.width) {
+                player.x = currentWidth - player.width;
+            }
             if (player.y > canvas.height + 100) {
                 player.hp = 0;
             }
