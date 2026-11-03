@@ -76,7 +76,7 @@
         </div>
     </div>
     <div class="controls-hint">
-        控制说明：<kbd>A</kbd> / <kbd>D</kbd> 或 <kbd>←</kbd> / <kbd>→</kbd> 移动 | <kbd>W</kbd> 或 <kbd>空格</kbd> 跳跃（可二段跳） | <kbd>J</kbd> / <kbd>K</kbd> 发射 Token | <kbd>0</kbd>-<kbd>9</kbd> 切换角色外观 | <kbd>R</kbd> 重新开始
+        控制说明：<kbd>A</kbd> / <kbd>D</kbd> / <kbd>←</kbd> / <kbd>→</kbd> 移动 | <kbd>W</kbd> / <kbd>空格</kbd> 跳跃 | <kbd>J</kbd> / <kbd>K</kbd> 发射 Token | <kbd>0</kbd>-<kbd>9</kbd> 随时切换10种鱼外观 | <kbd>R</kbd> 重新开始
     </div>
 
     <script>
@@ -120,7 +120,7 @@
         // 按键状态
         const keys = {};
         window.addEventListener('keydown', e => {
-            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
                 e.preventDefault();
             }
             keys[e.key.toLowerCase()] = true;
