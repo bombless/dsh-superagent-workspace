@@ -76,7 +76,11 @@
         </div>
     </div>
     <div class="controls-hint">
+<<<<<<< HEAD
+        控制说明：<kbd>A</kbd> / <kbd>D</kbd> / <kbd>←</kbd> / <kbd>→</kbd> 移动 | <kbd>W</kbd> / <kbd>空格</kbd> 跳跃 | <kbd>J</kbd> / <kbd>K</kbd> 发射 Token | <kbd>0</kbd>-<kbd>9</kbd> 随时切换10种鱼外观 | <kbd>R</kbd> 重新开始
+=======
         控制说明：<kbd>A</kbd> / <kbd>D</kbd> 或 <kbd>←</kbd> / <kbd>→</kbd> 移动 | <kbd>W</kbd> 或 <kbd>空格</kbd> 跳跃（可二段跳） | <kbd>J</kbd> / <kbd>K</kbd> 发射 Token 能量弹 | <kbd>R</kbd> 重新开始
+>>>>>>> origin/main
     </div>
 
     <script>
@@ -101,7 +105,7 @@
         let player = {
             x: 50,
             y: 300,
-            width: 28,
+            width: 42,
             height: 38,
             vx: 0,
             vy: 0,
@@ -118,10 +122,19 @@
             invincibleTimer: 0
         };
 
+        // 加载 10 个不同的鱼素材图片
+        const fishImages = [];
+        for (let i = 0; i < 10; i++) {
+            const img = new Image();
+            img.src = `fish_${i}.png`;
+            fishImages.push(img);
+        }
+        let currentFishIndex = 3; // 默认使用第3个（Whiscash大肥鱼）
+
         // 按键状态
         const keys = {};
         window.addEventListener('keydown', e => {
-            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
                 e.preventDefault();
             }
             keys[e.key.toLowerCase()] = true;
@@ -129,6 +142,10 @@
 
             if (e.key === 'r' || e.key === 'R') {
                 resetGame();
+            }
+            // 0-9 切换鱼素材
+            if (e.key >= '0' && e.key <= '9') {
+                currentFishIndex = parseInt(e.key);
             }
             if ((e.key === 'j' || e.key === 'J' || e.key === 'k' || e.key === 'K') && gameState === 'PLAYING') {
                 shootToken();
@@ -473,15 +490,35 @@
                 ctx.fillRect(proj.x, proj.y, proj.width, proj.height);
             });
 
+<<<<<<< HEAD
+            // 绘制玩家（加载自网上素材的大肥鱼角色）
+            if (player.invincibleTimer % 4 < 2) { // 受击闪烁
+=======
             // 使用外部图片素材绘制大肥鱼角色
             if (player.invincibleTimer % 4 < 2) {
+>>>>>>> origin/main
                 ctx.save();
                 ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
                 if (player.facing === 'left') {
                     ctx.scale(-1, 1);
                 }
+<<<<<<< HEAD
+
+                const currentImg = fishImages[currentFishIndex];
+                if (currentImg && currentImg.complete) {
+                    ctx.drawImage(currentImg, -player.width / 2 - 6, -player.height / 2 - 8, player.width + 12, player.height + 16);
+                } else {
+                    // 降级兜底：如果图片未加载完，用简易图形
+                    ctx.fillStyle = '#3b82f6';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, player.width/2, player.height/2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+=======
                 const activeImg = fishImgLoaded ? fishImg : fallbackFishImg;
                 ctx.drawImage(activeImg, -player.width/2 - 8, -player.height/2 - 8, player.width + 16, player.height + 16);
+>>>>>>> origin/main
                 ctx.restore();
             }
 
