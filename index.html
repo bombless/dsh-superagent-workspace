@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepSeek 冒险：智械觉醒 (DeepSeek Adventure)</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0b0f19;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        h1 {
+            margin: 5px 0;
+            font-size: 24px;
+            color: #3b82f6;
+            text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+        .game-container {
+            position: relative;
+            box-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
+            border: 2px solid #1e3a8a;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #0f172a;
+        }
+        canvas {
+            display: block;
+            background: linear-gradient(to bottom, #090d16, #1e1b4b);
+        }
+        .ui-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 16px;
+            font-weight: bold;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px #000;
+        }
+        .controls-hint {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #94a3b8;
+            text-align: center;
+            max-width: 800px;
+            line-height: 1.5;
+        }
+        kbd {
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: monospace;
+            color: #60a5fa;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>DeepSeek 冒险：智械觉醒</h1>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="800" height="450"></canvas>
+        <div class="ui-overlay">
+            <div id="statusHUD">生命: ❤️❤️❤️ | Token: 🪙 0 | 算力碎片: 💎 0/3</div>
+            <div id="levelHUD">关卡: 1 - 算力基石</div>
+        </div>
+    </div>
+    <div class="controls-hint">
+        控制说明：<kbd>A</kbd> / <kbd>D</kbd> 或 <kbd>←</kbd> / <kbd>→</kbd> 移动 | <kbd>W</kbd> 或 <kbd>空格</kbd> 跳跃（可二段跳） | <kbd>J</kbd> 或 <kbd>K</kbd> 发射 Token 能量弹 | <kbd>R</kbd> 重新开始
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 游戏状态
+        let gameState = 'START'; // START, PLAYING, GAMEOVER, WIN
+        let currentLevel = 1;
+
+        // 玩家对象
+        let player = {
+            x: 50,
+            y: 300,
+            width: 28,
+            height: 38,
+            vx: 0,
+            vy: 0,
+            speed: 3.5,
+            jumpForce: -10,
+            gravity: 0.45,
+            grounded: false,
+            jumpsLeft: 2,
+            hp: 3,
+            maxHp: 3,
+            tokens: 0,
+            shards: 0,
+            facing: 'right',
+            invincibleTimer: 0
+        };
+
+        // 按键状态
+        const keys = {};
+        window.addEventListener('keydown', e => {
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+                e.preventDefault();
+            }
+            keys[e.key.toLowerCase()] = true;
+            keys[e.key] = true;
+
+            if (e.key === 'r' || e.key === 'R') {
+                resetGame();
+            }
+            if ((e.key === 'j' || e.key === 'J' || e.key === 'k' || e.key === 'K') && gameState === 'PLAYING') {
+                shootToken();
+            }
+            if (e.key === ' ' && gameState === 'START') {
+                gameState = 'PLAYING';
+            }
+        });
+
+        window.addEventListener('keyup', e => {
+            keys[e.key.toLowerCase()] = false;
+            keys[e.key] = false;
+        });
+
+        // 实体数组
+        let platforms = [];
+        let enemies = [];
+        let projectles = [];
+        let collectibles = [];
+        let goal = null;
+
+        function initLevel(level) {
+            currentLevel = level;
+            player.x = 50;
+            player.y = 300;
+            player.vx = 0;
+            player.vy = 0;
+            projectles = [];
+
+            platforms = [];
+            enemies = [];
+            collectibles = [];
+
+            if (level === 1) {
+                // 第一关：算力基石
+                platforms = [
+                    { x: 0, y: 400, width: 1000, height: 50, type: 'ground' },
+                    { x: 250, y: 310, width: 120, height: 20, type: 'platform' },
+                    { x: 450, y: 230, width: 140, height: 20, type: 'platform' },
+                    { x: 650, y: 160, width: 120, height: 20, type: 'platform' },
+                    { x: 820, y: 280, width: 100, height: 20, type: 'platform' }
+                ];
+                enemies = [
+                    { x: 300, y: 375, width: 25, height: 25, vx: 1, minX: 250, maxX: 600, type: 'bug' },
+                    { x: 500, y: 205, width: 25, height: 25, vx: -1.5, minX: 450, maxX: 580, type: 'bug' },
+                    { x: 700, y: 135, width: 25, height: 25, vx: 1, minX: 650, maxX: 750, type: 'bug' }
+                ];
+                collectibles = [
+                    { x: 280, y: 270, width: 16, height: 16, type: 'token', collected: false },
+                    { x: 500, y: 190, width: 16, height: 16, type: 'token', collected: false },
+                    { x: 860, y: 240, width: 20, height: 20, type: 'shard', collected: false }
+                ];
+                goal = { x: 920, y: 330, width: 30, height: 70 };
+            } else if (level === 2) {
+                // 第二关：万亿参数迷宫
+                platforms = [
+                    { x: 0, y: 400, width: 1200, height: 50, type: 'ground' },
+                    { x: 180, y: 320, width: 100, height: 20, type: 'platform' },
+                    { x: 350, y: 250, width: 100, height: 20, type: 'platform' },
+                    { x: 520, y: 180, width: 100, height: 20, type: 'platform' },
+                    { x: 700, y: 250, width: 120, height: 20, type: 'platform' },
+                    { x: 900, y: 310, width: 120, height: 20, type: 'platform' }
+                ];
+                enemies = [
+                    { x: 200, y: 375, width: 28, height: 25, vx: 1.5, minX: 100, maxX: 450, type: 'leak' },
+                    { x: 550, y: 155, width: 25, height: 25, vx: -1.2, minX: 520, maxX: 620, type: 'bug' },
+                    { x: 750, y: 375, width: 30, height: 25, vx: 2, minX: 680, maxX: 880, type: 'leak' }
+                ];
+                collectibles = [
+                    { x: 380, y: 210, width: 16, height: 16, type: 'token', collected: false },
+                    { x: 550, y: 140, width: 20, height: 20, type: 'shard', collected: false },
+                    { x: 950, y: 270, width: 16, height: 16, type: 'token', collected: false }
+                ];
+                goal = { x: 1100, y: 330, width: 30, height: 70 };
+            } else if (level === 3) {
+                // 第三关：开源之海（终局）
+                platforms = [
+                    { x: 0, y: 400, width: 1400, height: 50, type: 'ground' },
+                    { x: 200, y: 310, width: 90, height: 20, type: 'platform' },
+                    { x: 360, y: 230, width: 90, height: 20, type: 'platform' },
+                    { x: 530, y: 160, width: 90, height: 20, type: 'platform' },
+                    { x: 700, y: 230, width: 90, height: 20, type: 'platform' },
+                    { x: 880, y: 160, width: 100, height: 20, type: 'platform' },
+                    { x: 1050, y: 260, width: 100, height: 20, type: 'platform' }
+                ];
+                enemies = [
+                    { x: 300, y: 375, width: 30, height: 25, vx: 2, minX: 200, maxX: 600, type: 'leak' },
+                    { x: 560, y: 135, width: 25, height: 25, vx: -1.8, minX: 530, maxX: 620, type: 'bug' },
+                    { x: 900, y: 135, width: 32, height: 28, vx: 2.2, minX: 880, maxX: 980, type: 'boss' }
+                ];
+                collectibles = [
+                    { x: 390, y: 190, width: 20, height: 20, type: 'shard', collected: false },
+                    { x: 730, y: 190, width: 16, height: 16, type: 'token', collected: false },
+                    { x: 1100, y: 220, width: 16, height: 16, type: 'token', collected: false }
+                ];
+                goal = { x: 1300, y: 330, width: 30, height: 70 };
+            }
+        }
+
+        function resetGame() {
+            player.hp = 3;
+            player.tokens = 0;
+            player.shards = 0;
+            gameState = 'PLAYING';
+            initLevel(1);
+        }
+
+        function shootToken() {
+            projectles.push({
+                x: player.facing === 'right' ? player.x + player.width : player.x - 12,
+                y: player.y + player.height / 2 - 4,
+                width: 12,
+                height: 6,
+                vx: player.facing === 'right' ? 8 : -8
+            });
+        }
+
+        // 碰撞检测
+        function rectIntersect(a, b) {
+            return a.x < b.x + b.width && a.x + a.width > b.x &&
+                   a.y < b.y + b.height && a.y + a.height > b.y;
+        }
+
+        // 更新逻辑
+        function update() {
+            if (gameState !== 'PLAYING') return;
+
+            // 左右移动
+            if (keys['a'] || keys['arrowleft']) {
+                player.vx = -player.speed;
+                player.facing = 'left';
+            } else if (keys['d'] || keys['arrowright']) {
+                player.vx = player.speed;
+                player.facing = 'right';
+            } else {
+                player.vx = 0;
+            }
+
+            // 跳跃
+            if ((keys['w'] || keys['arrowup'] || keys[' ']) && !player.jumpKeyHeld) {
+                if (player.grounded) {
+                    player.vy = player.jumpForce;
+                    player.grounded = false;
+                    player.jumpsLeft = 1;
+                } else if (player.jumpsLeft > 0) {
+                    player.vy = player.jumpForce * 0.85;
+                    player.jumpsLeft = 0;
+                }
+                player.jumpKeyHeld = true;
+            }
+            if (!keys['w'] && !keys['arrowup'] && !keys[' ']) {
+                player.jumpKeyHeld = false;
+            }
+
+            // 重力
+            player.vy += player.gravity;
+
+            // 移动与平台碰撞 X轴
+            player.x += player.vx;
+            platforms.forEach(p => {
+                if (rectIntersect(player, p)) {
+                    if (player.vx > 0) player.x = p.x - player.width;
+                    else if (player.vx < 0) player.x = p.x + p.width;
+                }
+            });
+
+            // 移动与平台碰撞 Y轴
+            player.grounded = false;
+            player.y += player.vy;
+            platforms.forEach(p => {
+                if (rectIntersect(player, p)) {
+                    if (player.vy > 0) { // 下落
+                        player.y = p.y - player.height;
+                        player.vy = 0;
+                        player.grounded = true;
+                        player.jumpsLeft = 2;
+                    } else if (player.vy < 0) { // 上升
+                        player.y = p.y + p.height;
+                        player.vy = 0;
+                    }
+                }
+            });
+
+            // 边界检查
+            if (player.x < 0) player.x = 0;
+            if (player.y > canvas.height + 100) {
+                player.hp = 0;
+            }
+
+            // 无敌时间递减
+            if (player.invincibleTimer > 0) player.invincibleTimer--;
+
+            // 更新敌人
+            enemies.forEach(e => {
+                e.x += e.vx;
+                if (e.x < e.minX || e.x > e.maxX) {
+                    e.vx *= -1;
+                }
+
+                // 玩家与敌人碰撞
+                if (player.invincibleTimer === 0 && rectIntersect(player, e)) {
+                    player.hp--;
+                    player.invincibleTimer = 60; // 1秒无敌
+                    player.vy = -5; // 受击弹开
+                    if (player.hp <= 0) {
+                        gameState = 'GAMEOVER';
+                    }
+                }
+            });
+
+            // 更新子弹
+            projectles.forEach((proj, pIdx) => {
+                proj.x += proj.vx;
+
+                // 子弹打敌人
+                enemies.forEach((e, eIdx) => {
+                    if (rectIntersect(proj, e)) {
+                        enemies.splice(eIdx, 1);
+                        projectles.splice(pIdx, 1);
+                    }
+                });
+            });
+            // 移除出屏幕子弹
+            projectles = projectles.filter(proj => proj.x > 0 && proj.x < 2000);
+
+            // 收集品检测
+            collectibles.forEach(c => {
+                if (!c.collected && rectIntersect(player, c)) {
+                    c.collected = true;
+                    if (c.type === 'token') {
+                        player.tokens++;
+                    } else if (c.type === 'shard') {
+                        player.shards++;
+                    }
+                }
+            });
+
+            // 关卡目标检测
+            if (goal && rectIntersect(player, goal)) {
+                if (currentLevel < 3) {
+                    initLevel(currentLevel + 1);
+                } else {
+                    gameState = 'WIN';
+                }
+            }
+
+            // 更新 HUD
+            let hearts = '❤️'.repeat(player.hp) + '🖤'.repeat(player.maxHp - player.hp);
+            document.getElementById('statusHUD').innerHTML = `生命: ${hearts} | Token: 🪙 ${player.tokens} | 算力碎片: 💎 ${player.shards}/3`;
+            let levelNames = ["1 - 算力基石", "2 - 万亿参数迷宫", "3 - 开源之海"];
+            document.getElementById('levelHUD').innerHTML = `关卡: ${levelNames[currentLevel - 1]}`;
+        }
+
+        // 渲染绘制
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (gameState === 'START') {
+                ctx.fillStyle = '#3b82f6';
+                ctx.font = 'bold 28px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('DeepSeek 冒险：智械觉醒', canvas.width / 2, 160);
+                
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '16px sans-serif';
+                ctx.fillText('穿梭算力集群，消灭幻觉 Bug，恢复大模型巅峰推理！', canvas.width / 2, 210);
+                
+                ctx.fillStyle = '#60a5fa';
+                ctx.fillText('按 [空格键] 开始游戏', canvas.width / 2, 280);
+                ctx.textAlign = 'left';
+                return;
+            }
+
+            // 计算摄像机偏移（以玩家为中心滚动）
+            let cameraX = player.x - 200;
+            if (cameraX < 0) cameraX = 0;
+            if (cameraX > 600 && currentLevel === 1) cameraX = 200; // 简单限制
+
+            ctx.save();
+            ctx.translate(-cameraX, 0);
+
+            // 绘制背景网格/装饰
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.08)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 2000; i += 40) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+            }
+
+            // 绘制平台
+            platforms.forEach(p => {
+                ctx.fillStyle = p.type === 'ground' ? '#1e293b' : '#334155';
+                ctx.fillRect(p.x, p.y, p.width, p.height);
+                ctx.strokeStyle = '#3b82f6';
+                ctx.strokeRect(p.x, p.y, p.width, p.height);
+            });
+
+            // 绘制终点传动门
+            if (goal) {
+                ctx.fillStyle = '#10b981';
+                ctx.fillRect(goal.x, goal.y, goal.width, goal.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '12px sans-serif';
+                ctx.fillText('出口', goal.x + 3, goal.y + 40);
+            }
+
+            // 绘制收集品
+            collectibles.forEach(c => {
+                if (!c.collected) {
+                    if (c.type === 'token') {
+                        ctx.fillStyle = '#fbbf24';
+                        ctx.beginPath();
+                        ctx.arc(c.x + c.width/2, c.y + c.height/2, c.width/2, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else if (c.type === 'shard') {
+                        ctx.fillStyle = '#a855f7';
+                        ctx.fillRect(c.x, c.y, c.width, c.height);
+                    }
+                }
+            });
+
+            // 绘制敌人
+            enemies.forEach(e => {
+                ctx.fillStyle = e.type === 'boss' ? '#ef4444' : (e.type === 'leak' ? '#f59e0b' : '#ec4899');
+                ctx.fillRect(e.x, e.y, e.width, e.height);
+                // 眼睛
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(e.x + 5, e.y + 5, 4, 4);
+                ctx.fillRect(e.x + 14, e.y + 5, 4, 4);
+            });
+
+            // 绘制子弹
+            ctx.fillStyle = '#60a5fa';
+            projectles.forEach(proj => {
+                ctx.fillRect(proj.x, proj.y, proj.width, proj.height);
+            });
+
+            // 绘制玩家（DeepSeek Agent 001）
+            if (player.invincibleTimer % 4 < 2) { // 受击闪烁
+                ctx.fillStyle = '#3b82f6';
+                ctx.fillRect(player.x, player.y, player.width, player.height);
+                // 核心徽标/眼睛
+                ctx.fillStyle = '#ffffff';
+                if (player.facing === 'right') {
+                    ctx.fillRect(player.x + 16, player.y + 8, 6, 6);
+                } else {
+                    ctx.fillRect(player.x + 6, player.y + 8, 6, 6);
+                }
+                // 背包/算力核心
+                ctx.fillStyle = '#93c5fd';
+                ctx.fillRect(player.x + 8, player.y + 20, 12, 10);
+            }
+
+            ctx.restore();
+
+            // 游戏结束或胜利画面
+            if (gameState === 'GAMEOVER') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#ef4444';
+                ctx.font = 'bold 32px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('系统崩溃 (Game Over)', canvas.width / 2, 180);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '16px sans-serif';
+                ctx.fillText('遭遇过多幻觉 Bug 袭击，推理中断。', canvas.width / 2, 230);
+                ctx.fillStyle = '#60a5fa';
+                ctx.fillText('按 [R] 键重新启动系统', canvas.width / 2, 280);
+                ctx.textAlign = 'left';
+            } else if (gameState === 'WIN') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#10b981';
+                ctx.font = 'bold 32px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('智械觉醒成功！', canvas.width / 2, 160);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '16px sans-serif';
+                ctx.fillText(`恭喜通关所有关卡！收集 Token: ${player.tokens} | 算力碎片: ${player.shards}/3`, canvas.width / 2, 210);
+                ctx.fillStyle = '#60a5fa';
+                ctx.fillText('按 [R] 键再次挑战', canvas.width / 2, 270);
+                ctx.textAlign = 'left';
+            }
+        }
+
+        // 主循环
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        // 初始化
+        initLevel(1);
+        loop();
+    </script>
+</body>
+</html>
