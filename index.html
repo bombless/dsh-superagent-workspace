@@ -463,20 +463,97 @@
                 ctx.fillRect(proj.x, proj.y, proj.width, proj.height);
             });
 
-            // 绘制玩家（DeepSeek Agent 001）
+            // 绘制玩家（DeepSeek 大肥鱼皮肤 - 高清风格大肥鱼）
             if (player.invincibleTimer % 4 < 2) { // 受击闪烁
-                ctx.fillStyle = '#3b82f6';
-                ctx.fillRect(player.x, player.y, player.width, player.height);
-                // 核心徽标/眼睛
-                ctx.fillStyle = '#ffffff';
-                if (player.facing === 'right') {
-                    ctx.fillRect(player.x + 16, player.y + 8, 6, 6);
-                } else {
-                    ctx.fillRect(player.x + 6, player.y + 8, 6, 6);
+                ctx.save();
+                ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+                if (player.facing === 'left') {
+                    ctx.scale(-1, 1);
                 }
-                // 背包/算力核心
-                ctx.fillStyle = '#93c5fd';
-                ctx.fillRect(player.x + 8, player.y + 20, 12, 10);
+
+                // 鱼身主渐变色 (DeepSeek 科技蓝青渐变)
+                let bodyGrad = ctx.createRadialGradient(-2, -4, 2, 0, 0, 20);
+                bodyGrad.addColorStop(0, '#60a5fa');
+                bodyGrad.addColorStop(0.5, '#3b82f6');
+                bodyGrad.addColorStop(1, '#1d4ed8');
+                ctx.fillStyle = bodyGrad;
+
+                // 肥鱼圆润身躯 (Ellipse / Bezier body)
+                ctx.beginPath();
+                ctx.ellipse(0, 2, 17, 13, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = '#93c5fd';
+                ctx.stroke();
+
+                // 鱼肚光泽 / 算力核心底色
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+                ctx.beginPath();
+                ctx.ellipse(2, 5, 11, 7, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 尾鳍 (Tail fin)
+                ctx.fillStyle = '#2563eb';
+                ctx.beginPath();
+                ctx.moveTo(-15, 2);
+                ctx.lineTo(-24, -8);
+                ctx.lineTo(-21, 2);
+                ctx.lineTo(-24, 12);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = '#93c5fd';
+                ctx.stroke();
+
+                // 背鳍 (Dorsal fin)
+                ctx.fillStyle = '#3b82f6';
+                ctx.beginPath();
+                ctx.moveTo(-4, -13);
+                ctx.lineTo(4, -18);
+                ctx.lineTo(8, -11);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // 胸鳍 (Pectoral fin)
+                ctx.fillStyle = '#60a5fa';
+                ctx.beginPath();
+                ctx.ellipse(-2, 8, 5, 3, Math.PI / 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 鱼眼：科技大眼与高光
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(8, -3, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#1e3a8a';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                // 瞳孔（DeepSeek 蓝色核心瞳孔）
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.arc(9, -3, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                // 瞳孔高光
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(10, -4, 1, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 腮红 / 科技呼吸灯
+                ctx.fillStyle = 'rgba(147, 197, 253, 0.6)';
+                ctx.beginPath();
+                ctx.arc(4, 3, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 吹出的微小 Token 泡泡/气泡装饰
+                ctx.fillStyle = 'rgba(96, 165, 250, 0.7)';
+                ctx.beginPath();
+                ctx.arc(17, -1, 2, 0, Math.PI * 2);
+                ctx.arc(21, -5, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
             }
 
             ctx.restore();
