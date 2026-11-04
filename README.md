@@ -2,6 +2,20 @@
 
 This repository is the **private source workspace** for games generated and maintained by the game-building bot.
 
+## Moonlight Courier
+
+A tiny night-time arcade game. You ride a scooter across a dreamy city, collecting glowing parcels while dodging sleepy cats, traffic cones, and puddles. You have three hearts. The road speeds up as your delivery score climbs.
+
+Open `index.html` in a browser, or play the published build at the URL below.
+
+**Controls**
+
+- Move between three lanes with the left/right arrow keys or A/D.
+- On a phone, tap the left or right side of the road, swipe, or use the on-screen arrows.
+- Press Enter or Space, or tap the road, to start and to ride again after game over.
+
+Score and best score stay on screen. Best score is saved in this browser.
+
 ## Publishing games
 
 The playable website is published automatically to:
