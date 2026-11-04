@@ -413,7 +413,7 @@
             // 计算摄像机偏移（以玩家为中心滚动）
             let cameraX = player.x - 200;
             if (cameraX < 0) cameraX = 0;
-            if (cameraX > 600 && currentLevel === 1) cameraX = 200; // 简单限制
+            if (currentLevel === 1) cameraX = Math.min(cameraX, Math.max(0, 1000 - canvas.width));
 
             ctx.save();
             ctx.translate(-cameraX, 0);
