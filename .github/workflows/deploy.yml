@@ -79,19 +79,225 @@ jobs:
           cd site
           zip -qr ../site.zip .
 
-      - name: Deploy to Caddy webhook
+      - name: Check deploy configuration
         env:
           DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
         shell: bash
         run: |
           set -euo pipefail
+
+          # Mask the bearer token before any later step can echo the environment.
+          if [ -n "${DEPLOY_TOKEN:-}" ]; then
+            echo "::add-mask::${DEPLOY_TOKEN}"
+          fi
+
+          missing=0
           if [ -z "${DEPLOY_TOKEN:-}" ]; then
-            echo "::error::Repository secret DEPLOY_TOKEN is not configured."
+            echo "::error::Repository secret DEPLOY_TOKEN is not configured. Add it under Settings → Secrets and variables → Actions. The value is never printed."
+            missing=1
+          else
+            echo "DEPLOY_TOKEN is configured (value hidden)."
+          fi
+
+          if [ -z "${DEPLOY_WEBHOOK_URL:-}" ]; then
+            echo "::error::Repository secret DEPLOY_WEBHOOK_URL is not configured. Set it to the Static Deploy webhook URL (https). Do not hard-code a temporary tunnel address in the workflow."
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
             exit 1
           fi
 
-          curl --fail-with-body --show-error --silent \
-            -X POST 'https://bombless.duckdns.org/_deploy' \
+          case "$DEPLOY_WEBHOOK_URL" in
+            https://*) ;;
+            http://*)
+              echo "::error::DEPLOY_WEBHOOK_URL must use https. Plain HTTP is rejected so the bearer token is not sent in clear text."
+              exit 1
+              ;;
+            *)
+              echo "::error::DEPLOY_WEBHOOK_URL is not an https URL. Expected a URL such as https://<host>/<path>."
+              exit 1
+              ;;
+          esac
+
+          # Print only scheme, host, and path. Query strings can carry credentials.
+          DEPLOY_WEBHOOK_URL="$DEPLOY_WEBHOOK_URL" node <<'NODE'
+          const raw = process.env.DEPLOY_WEBHOOK_URL;
+          let url;
+          try {
+            url = new URL(raw);
+          } catch (error) {
+            console.error(`::error::DEPLOY_WEBHOOK_URL is not a valid URL: ${error.message}`);
+            process.exit(1);
+          }
+          if (url.username || url.password) {
+            console.error("::error::DEPLOY_WEBHOOK_URL must not embed a username or password. Authenticate with the DEPLOY_TOKEN bearer secret.");
+            process.exit(1);
+          }
+          if (!url.hostname) {
+            console.error("::error::DEPLOY_WEBHOOK_URL is missing a hostname.");
+            process.exit(1);
+          }
+          const path = url.pathname || "/";
+          console.log(`Deploy webhook: ${url.protocol}//${url.host}${path}`);
+          NODE
+
+      - name: Probe webhook connectivity
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::add-mask::${DEPLOY_TOKEN}"
+
+          # Empty POST, not the site archive. An invalid body cannot be published:
+          # the webhook returns HTTP 400 invalid_archive for a body that is not a ZIP.
+          # DNS, TCP, and TLS failures are curl exit codes, not HTTP statuses from the webhook.
+          # -X POST is avoided: curl 7.61 follows --upload-file instead of -d ''.
+          body_file="$(mktemp)"
+          header_file="$(mktemp)"
+          code_file="$(mktemp)"
+          trap 'rm -f "$body_file" "$header_file" "$code_file"' EXIT
+
+          set +e
+          curl --silent --show-error \
+            --retry 0 \
+            --connect-timeout 15 \
+            --max-time 30 \
+            --dump-header "$header_file" \
+            --output "$body_file" \
+            --write-out '%{http_code}' \
             -H "Authorization: Bearer ${DEPLOY_TOKEN}" \
             -H 'Content-Type: application/zip' \
-            --data-binary @site.zip
+            --data-binary @/dev/null \
+            "$DEPLOY_WEBHOOK_URL" >"$code_file"
+          probe_exit=$?
+          set -e
+
+          http_code="$(tr -cd '0-9' <"$code_file" || true)"
+          echo "Probe curl exit code: ${probe_exit}"
+
+          if [ "$probe_exit" -ne 0 ]; then
+            case "$probe_exit" in
+              5)  echo "::error::Webhook proxy error (curl exit 5). This is a connection problem, not an HTTP status from the webhook." ;;
+              6)  echo "::error::Could not resolve the webhook host (curl exit 6, DNS). Check DEPLOY_WEBHOOK_URL. This is not an HTTP error from the webhook." ;;
+              7)  echo "::error::Could not connect to the webhook host (curl exit 7, TCP). This is not an HTTP error from the webhook." ;;
+              28) echo "::error::Timed out contacting the webhook (curl exit 28). Limits: connect-timeout 15s, max-time 30s. This is not an HTTP error from the webhook." ;;
+              35) echo "::error::TLS handshake failed (curl exit 35). The webhook is not reachable over HTTPS. This is not an HTTP error from the webhook. TLS verification stays enabled." ;;
+              51|60)
+                echo "::error::TLS certificate verification failed (curl exit ${probe_exit}). Refusing to continue. Do not disable TLS verification."
+                ;;
+              *)
+                echo "::error::Webhook connectivity check failed before an HTTP response (curl exit ${probe_exit}). This is not an HTTP status from the webhook."
+                ;;
+            esac
+            exit "$probe_exit"
+          fi
+
+          echo "Probe HTTP status: ${http_code:-<none>}"
+          echo "Probe response headers:"
+          sed -E 's/([Aa]uthorization:[[:space:]]*)(Bearer[[:space:]]+).*/\1Bearer <redacted>/I' "$header_file" || true
+          echo "Probe response body:"
+          head -c 2000 "$body_file" || true
+          echo
+
+          case "$http_code" in
+            2*|3*)
+              echo "Webhook responded over HTTPS (HTTP ${http_code})."
+              ;;
+            401)
+              echo "::error::Webhook rejected the bearer token (HTTP 401). Check that DEPLOY_TOKEN matches the server. The token value is not printed."
+              exit 1
+              ;;
+            400)
+              echo "Webhook rejected the empty probe body (HTTP 400). That is expected when the server requires a ZIP. The site archive was not sent."
+              ;;
+            500)
+              echo "::error::Webhook reported an internal error (HTTP 500). Expected body: {\"error\":\"internal_error\"}. This is an HTTP error from the webhook, not a TLS or connection failure."
+              exit 1
+              ;;
+            *)
+              echo "::error::Webhook returned unexpected HTTP ${http_code} during the connectivity probe. No archive was uploaded."
+              exit 1
+              ;;
+          esac
+          echo "Connectivity probe finished. The site archive has not been uploaded."
+
+      - name: Deploy to static webhook
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::add-mask::${DEPLOY_TOKEN}"
+
+          if [ ! -f site.zip ]; then
+            echo "::error::site.zip is missing. The package step did not produce an archive."
+            exit 1
+          fi
+
+          body_file="$(mktemp)"
+          code_file="$(mktemp)"
+          trap 'rm -f "$body_file" "$code_file"' EXIT
+
+          set +e
+          curl --silent --show-error \
+            --retry 0 \
+            --connect-timeout 15 \
+            --max-time 120 \
+            --output "$body_file" \
+            --write-out '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer ${DEPLOY_TOKEN}" \
+            -H 'Content-Type: application/zip' \
+            --data-binary @site.zip \
+            "$DEPLOY_WEBHOOK_URL" >"$code_file"
+          deploy_exit=$?
+          set -e
+
+          http_code="$(tr -cd '0-9' <"$code_file" || true)"
+          echo "Deploy curl exit code: ${deploy_exit}"
+          echo "Deploy HTTP status: ${http_code:-<none>}"
+          echo "Deploy response body:"
+          head -c 4000 "$body_file" || true
+          echo
+
+          if [ "$deploy_exit" -ne 0 ]; then
+            case "$deploy_exit" in
+              6)  echo "::error::Could not resolve the webhook host (curl exit 6, DNS). This is a connection failure, not an HTTP error from the webhook." ;;
+              7)  echo "::error::Could not connect to the webhook host (curl exit 7, TCP). This is a connection failure, not an HTTP error from the webhook." ;;
+              28) echo "::error::Timed out uploading the archive (curl exit 28). Limits: connect-timeout 15s, max-time 120s. This is a connection failure, not an HTTP error from the webhook." ;;
+              35) echo "::error::TLS handshake failed while uploading (curl exit 35). This is a TLS failure, not an HTTP error from the webhook. TLS verification stays enabled." ;;
+              51|60)
+                echo "::error::TLS certificate verification failed (curl exit ${deploy_exit}). Refusing to continue."
+                ;;
+              *)
+                echo "::error::Upload failed before an HTTP response (curl exit ${deploy_exit}). This is not an HTTP status from the webhook."
+                ;;
+            esac
+            exit "$deploy_exit"
+          fi
+
+          case "$http_code" in
+            2*)
+              echo "Deployment accepted (HTTP ${http_code})."
+              ;;
+            400)
+              echo "::error::Webhook rejected the archive (HTTP 400). Expected body when the ZIP is invalid: {\"error\":\"invalid_archive\"}."
+              exit 1
+              ;;
+            401)
+              echo "::error::Webhook rejected the bearer token (HTTP 401). Check that DEPLOY_TOKEN matches the server. The token value is not printed."
+              exit 1
+              ;;
+            500)
+              echo "::error::Webhook reported an internal error (HTTP 500). Expected body: {\"error\":\"internal_error\"}. This is an HTTP error from the webhook, not a TLS or connection failure."
+              exit 1
+              ;;
+            *)
+              echo "::error::Webhook returned unexpected HTTP ${http_code}."
+              exit 1
+              ;;
+          esac
