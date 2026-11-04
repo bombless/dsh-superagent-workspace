@@ -110,6 +110,8 @@
 
         // 加载 10 个不同的鱼素材图片
         const fishImages = [];
+        // Most source images face left; skin 1 faces right and skin 4 faces forward.
+        const fishSourceFacesLeft = [true, false, true, true, false, true, true, true, true, true];
         for (let i = 0; i < 10; i++) {
             const img = new Image();
             img.src = `fish_${i}.png`;
@@ -480,7 +482,7 @@
             if (player.invincibleTimer % 4 < 2) { // 受击闪烁
                 ctx.save();
                 ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
-                if (player.facing === 'left') {
+                if ((player.facing === 'left') !== fishSourceFacesLeft[currentFishIndex]) {
                     ctx.scale(-1, 1);
                 }
 
