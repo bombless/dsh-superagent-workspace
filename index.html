@@ -76,7 +76,7 @@
         </div>
     </div>
     <div class="controls-hint">
-        控制说明：<kbd>A</kbd> / <kbd>D</kbd> / <kbd>←</kbd> / <kbd>→</kbd> 移动 | <kbd>W</kbd> / <kbd>空格</kbd> 跳跃 | <kbd>J</kbd> / <kbd>K</kbd> 发射 Token | <kbd>0</kbd>-<kbd>9</kbd> 随时切换10种鱼外观 | <kbd>R</kbd> 重新开始
+        控制说明：<kbd>A</kbd> / <kbd>D</kbd> / <kbd>←</kbd> / <kbd>→</kbd> 移动 | <kbd>W</kbd> / <kbd>空格</kbd> 跳跃 | <kbd>J</kbd> / <kbd>K</kbd> 发射 Token | <kbd>H</kbd> 游戏主角 | <kbd>0</kbd>-<kbd>9</kbd> 切换10种鱼外观 | <kbd>R</kbd> 重新开始
     </div>
 
     <script>
@@ -115,7 +115,12 @@
             img.src = `fish_${i}.png`;
             fishImages.push(img);
         }
-        let currentFishIndex = 3; // 默认使用第3个（Whiscash大肥鱼）
+        // 游戏主角素材（用生图 skill 生成）
+        const heroImg = new Image();
+        heroImg.src = 'game_hero.png';
+        let currentFishIndex = 'hero'; // 默认使用游戏主角；按 0-9 可切换鱼皮肤，按 H 切回主角
+
+        function setHeroSkin() { currentFishIndex = 'hero'; }
 
         // 按键状态
         const keys = {};
@@ -129,9 +134,12 @@
             if (e.key === 'r' || e.key === 'R') {
                 resetGame();
             }
-            // 0-9 切换鱼素材
+            // 0-9 切换鱼素材，H 切回游戏主角
             if (e.key >= '0' && e.key <= '9') {
                 currentFishIndex = parseInt(e.key);
+            }
+            if (e.key === 'h' || e.key === 'H') {
+                setHeroSkin();
             }
             if ((e.key === 'j' || e.key === 'J' || e.key === 'k' || e.key === 'K') && gameState === 'PLAYING') {
                 shootToken();
@@ -476,7 +484,7 @@
                 ctx.fillRect(proj.x, proj.y, proj.width, proj.height);
             });
 
-            // 绘制玩家（加载自网上素材的大肥鱼角色）
+            // 绘制玩家角色
             if (player.invincibleTimer % 4 < 2) { // 受击闪烁
                 ctx.save();
                 ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
@@ -484,8 +492,8 @@
                     ctx.scale(-1, 1);
                 }
 
-                const currentImg = fishImages[currentFishIndex];
-                if (currentImg && currentImg.complete) {
+                const currentImg = currentFishIndex === 'hero' ? heroImg : fishImages[currentFishIndex];
+                if (currentImg && currentImg.complete && currentImg.naturalWidth > 0) {
                     ctx.drawImage(currentImg, -player.width / 2 - 6, -player.height / 2 - 8, player.width + 12, player.height + 16);
                 } else {
                     // 降级兜底：如果图片未加载完，用简易图形
