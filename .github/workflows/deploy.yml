@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   deploy:
-    uses: bombless/caddy-webhook/.github/workflows/deploy-static.yml@0a50baf4db4bae815154e154346a5a8b99aa8b58
+    uses: bombless/caddy-webhook/.github/workflows/deploy-static.yml@152815348df89e509f7491009014640a2f32b622
     with:
       output_dir: "."
     secrets:
