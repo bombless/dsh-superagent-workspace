@@ -1,36 +1,97 @@
-name: Deploy to GitHub Pages
+name: Build and deploy
 
 on:
   push:
     branches: ["main"]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  group: static-game-deploy
+  cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout source
         uses: actions/checkout@v4
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          path: '.'
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          node-version: 22
+
+      - name: Build static game
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -f package.json ]; then
+            if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+              npm ci
+            else
+              echo "::warning::No npm lockfile found; using npm install. Commit package-lock.json for reproducible builds."
+              npm install
+            fi
+
+            if node -e "process.exit(require('./package.json').scripts?.build ? 0 : 1)"; then
+              npm run build
+            else
+              echo "No npm build script found; expecting a static site in the repository root."
+            fi
+          fi
+
+          rm -rf site
+          mkdir -p site
+
+          if [ -d dist ]; then
+            cp -a dist/. site/
+          elif [ -d build ]; then
+            cp -a build/. site/
+          elif [ -d out ]; then
+            cp -a out/. site/
+          else
+            echo "No dist/, build/, or out/ directory found; using root-level static files."
+            rsync -a \
+              --exclude='.git/' \
+              --exclude='.github/' \
+              --exclude='node_modules/' \
+              --exclude='site/' \
+              --exclude='package.json' \
+              --exclude='package-lock.json' \
+              --exclude='npm-shrinkwrap.json' \
+              --exclude='yarn.lock' \
+              --exclude='pnpm-lock.yaml' \
+              --exclude='README*' \
+              ./ site/
+          fi
+
+          if [ ! -f site/index.html ]; then
+            echo "::error::The published site must contain index.html at its root."
+            exit 1
+          fi
+
+      - name: Package static site
+        run: |
+          cd site
+          zip -qr ../site.zip .
+
+      - name: Deploy to Caddy webhook
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_TOKEN:-}" ]; then
+            echo "::error::Repository secret DEPLOY_TOKEN is not configured."
+            exit 1
+          fi
+
+          curl --fail-with-body --show-error --silent \
+            -X POST 'https://bombless.duckdns.org/_deploy' \
+            -H "Authorization: Bearer ${DEPLOY_TOKEN}" \
+            -H 'Content-Type: application/zip' \
+            --data-binary @site.zip
