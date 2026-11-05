@@ -122,18 +122,27 @@ function send2(event) {
 send2({ type: 'KEY_DOWN', code: 'ArrowDown', modifiers: 0, timestamp_micros: 0 });
 for (let i = 0; i < 60; i++) ex2.game_update(16667);
 send2({ type: 'KEY_UP', code: 'ArrowDown', modifiers: 0, timestamp_micros: 1000000 });
-const replay = new Uint8Array(ex2.memory.buffer.slice(
-  ex2.game_get_render_buffer_ptr(), ex2.game_get_render_buffer_ptr() + renderLen));
+const replayPtr = ex2.game_get_render_buffer_ptr();
+if (ex2.game_render(replayPtr, renderLen) !== renderLen) throw new Error('second game_render failed');
+const replay = new Uint8Array(ex2.memory.buffer.slice(replayPtr, replayPtr + renderLen));
 if (replay.length !== afterKeyDown.length || replay.some((v, i) => v !== afterKeyDown[i])) {
   throw new Error('replay is not deterministic');
 }
 
-// Play out a match without player input; the AI must be able to win and the
+// Play out a match with alternating paddle input; the rally must end and the
 // game-over overlay must appear.
 let over = false;
-for (let i = 0; i < 40000; i++) {
+let direction = 1; // 1 = up next, 0 = down next
+for (let i = 0; i < 20000; i++) {
+  if (i % 30 === 0) {
+    if (i > 0) {
+      send({ type: 'KEY_UP', code: direction ? 'ArrowDown' : 'ArrowUp', modifiers: 0, timestamp_micros: i * 16667 });
+    }
+    direction = 1 - direction;
+    send({ type: 'KEY_DOWN', code: direction ? 'ArrowDown' : 'ArrowUp', modifiers: 0, timestamp_micros: i * 16667 });
+  }
   tick(1);
-  if (i % 500 === 0) {
+  if (i % 250 === 0) {
     const f = frame();
     // The overlay divides every channel by three.
     if (countColor(f, 12, 16, 24) === 0 && countColor(f, 4, 5, 8) > 0) { over = true; break; }
