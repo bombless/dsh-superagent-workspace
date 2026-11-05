@@ -57,12 +57,13 @@ jobs:
           test -n "${DEPLOY_TOKEN:-}" || { echo "::error::DEPLOY_TOKEN secret is required"; exit 1; }
           test -n "${GAME_DEPLOY_WEBHOOK_URL:-}" || { echo "::error::GAME_DEPLOY_WEBHOOK_URL secret is required"; exit 1; }
           echo "::add-mask::${DEPLOY_TOKEN}"
-          node --input-type=module <<'NODE'
-          const url = new URL(process.env.GAME_DEPLOY_WEBHOOK_URL)
-          if (url.protocol !== 'https:' || !url.pathname.endsWith('/_deploy/game') || url.username || url.password) {
-            throw new Error('GAME_DEPLOY_WEBHOOK_URL must be HTTPS and end with /_deploy/game')
-          }
-          NODE
+          # GitHub masks the whole secret value in this step's script text. Check it with
+          # bash parameter expansion so the value is never placed where the mask can rewrite it.
+          case "${GAME_DEPLOY_WEBHOOK_URL}" in
+            https://*@*) echo "::error::GAME_DEPLOY_WEBHOOK_URL must not contain credentials."; exit 1 ;;
+            https://*/_deploy/game|https://*/_deploy/game/) ;;
+            *) echo "::error::GAME_DEPLOY_WEBHOOK_URL must be HTTPS and end with /_deploy/game."; exit 1 ;;
+          esac
 
       - name: Publish immutable game package
         env:
