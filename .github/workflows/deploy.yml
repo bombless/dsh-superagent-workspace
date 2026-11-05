@@ -63,6 +63,7 @@ jobs:
           origin="${GAME_DEPLOY_WEBHOOK_URL%/_deploy/game}"
           host="${origin#https://}"
           echo "resolved $(getent ahostsv4 "$host" | awk '{print $1}' | sort -u | paste -sd, -)"
+          echo "ports $(curl --silent --show-error --connect-timeout 10 --max-time 15 --output /dev/null --write-out '443=%{http_code}' "https://${host}/" || true) $(curl --silent --show-error --connect-timeout 10 --max-time 15 --output /dev/null --write-out '80=%{http_code}' "http://${host}/" || true)"
           curl --http1.1 --silent --show-error --connect-timeout 15 --max-time 30 \
             --output /dev/null --write-out 'control HTTP %{http_code}\n' \
             https://github.com/ || true
