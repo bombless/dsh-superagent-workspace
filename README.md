@@ -2,19 +2,16 @@
 
 This repository is the **private source workspace** for games generated and maintained by the game-building bot.
 
-## Moonlight Courier
+## Puppy Feeding
 
-A tiny night-time arcade game. You ride a scooter across a dreamy city, collecting glowing parcels while dodging sleepy cats, traffic cones, and puddles. You have three hearts. The road speeds up as your delivery score climbs.
+A top-down field. It starts empty. Click or tap the grass to toss a bone, and a puppy runs in from a random edge, picks the bone up, and carries it back off the field. Toss another whenever you like; several puppies can be on the grass at once.
 
 Open `index.html` in a browser, or play the published build at the URL below.
 
 **Controls**
 
-- Move between three lanes with the left/right arrow keys or A/D.
-- On a phone, tap the left or right side of the road, swipe, or use the on-screen arrows.
-- Press Enter or Space, or tap the road, to start and to ride again after game over.
-
-Score and best score stay on screen. Best score is saved in this browser.
+- Click or tap inside the dashed field to drop a bone.
+- Fetched bones and bones still on the grass stay on screen. Nothing is saved.
 
 ## Publishing games
 
