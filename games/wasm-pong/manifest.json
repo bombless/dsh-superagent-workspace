@@ -1,0 +1,20 @@
+{
+  "manifestVersion": 1,
+  "id": "wasm-pong",
+  "name": "WASM Pong",
+  "version": "1.0.0",
+  "pluginType": "wasm",
+  "entry": "game.wasm",
+  "runtime": {
+    "apiVersion": "1",
+    "display": { "width": 320, "height": 180, "pixelScale": "fit", "orientation": "landscape" },
+    "capabilities": ["input.keyboard", "input.pointer"],
+    "wasm": {
+      "abi": "bombless-game-abi",
+      "abiVersion": 1,
+      "maxMemoryPages": 16,
+      "maxOutputBytes": 230400,
+      "renderMode": "rgba"
+    }
+  }
+}
