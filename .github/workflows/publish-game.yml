@@ -1,8 +1,6 @@
 name: Publish game package
 
 on:
-  push:
-    branches: ["agent/deploy-wasm-game-15cd5f1c2891"]
   workflow_dispatch:
     inputs:
       package_dir:
