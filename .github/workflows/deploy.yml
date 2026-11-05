@@ -57,9 +57,14 @@ jobs:
           test -n "${DEPLOY_TOKEN:-}" || { echo "::error::DEPLOY_TOKEN secret is required"; exit 1; }
           test -n "${GAME_DEPLOY_WEBHOOK_URL:-}" || { echo "::error::GAME_DEPLOY_WEBHOOK_URL secret is required"; exit 1; }
           echo "::add-mask::${DEPLOY_TOKEN}"
-          # The runner masks every copy of a secret's text, so this step cannot inspect the
-          # URL without comparing it to its own masked placeholder. The upload reports an
-          # HTTP, DNS, or TLS failure when the configured endpoint is wrong.
+          # Confirm the secret reaches this step intact, then exercise DNS and TLS without
+          # printing the endpoint. GitHub masks the secret text, so its contents cannot be echoed.
+          test "${#GAME_DEPLOY_WEBHOOK_URL}" -eq 41 || { echo "::error::GAME_DEPLOY_WEBHOOK_URL has an unexpected length."; exit 1; }
+          origin="${GAME_DEPLOY_WEBHOOK_URL%/_deploy/game}"
+          getent hosts "${origin#https://}" || { echo "::error::Game webhook host did not resolve."; exit 1; }
+          curl --http1.1 --silent --show-error --connect-timeout 15 --max-time 30 \
+            --output /dev/null --write-out 'registry HTTP %{http_code}\n' \
+            "${origin}/_games/registry.json"
 
       - name: Publish immutable game package
         env:
