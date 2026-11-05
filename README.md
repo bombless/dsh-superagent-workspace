@@ -6,7 +6,7 @@ This repository is the **private source workspace** for one game package publish
 
 An 8×8 board of colored pebbles. Tap a group of at least two pebbles that share a color and touch horizontally or vertically. The group disappears, pebbles above it fall down, and the score counts every pebble removed. The board ends when no group remains.
 
-Open `index.html` in a browser, or launch the published package from the game library. The best score is kept in local browser storage.
+Open `index.html` in a browser, or launch the published package from the game library. The best score lasts for the current visit only.
 
 **Controls**
 

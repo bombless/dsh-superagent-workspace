@@ -12,6 +12,6 @@
       "orientation": "any",
       "resize": "contain"
     },
-    "capabilities": ["input.pointer", "score"]
+    "capabilities": ["input.pointer"]
   }
 }

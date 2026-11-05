@@ -12,7 +12,7 @@ const restartButton = document.querySelector('#restart')
 const state = {
   cells: [],
   cleared: 0,
-  best: Number(localStorage.getItem('pebble-match-best') || 0),
+  best: 0,
 }
 
 function index(column, row) {
@@ -85,7 +85,6 @@ function render(marked = []) {
 
 function finish(message) {
   state.best = Math.max(state.best, state.cleared)
-  localStorage.setItem('pebble-match-best', String(state.best))
   statusElement.textContent = message
   render()
 }
