@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Moonlight Courier</title>
+  <style>
+    :root {
+      --ink: #e8e4ff;
+      --muted: #b7b0d6;
+      --gold: #ffd36a;
+      --rose: #ff7aa2;
+      --panel: rgba(16, 12, 36, 0.72);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #070514;
+      color: var(--ink);
+      font-family: "Segoe UI", "PingFang SC", "Noto Sans", sans-serif;
+      overflow: hidden;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    #stage {
+      position: relative;
+      width: 100vw;
+      height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    canvas {
+      display: block;
+      width: min(100vw, calc(100dvh * 9 / 16));
+      height: min(100dvh, calc(100vw * 16 / 9));
+      background: #09071a;
+      border-radius: 18px;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 20px 80px rgba(0,0,0,0.45);
+    }
+    .hud {
+      position: absolute;
+      top: max(12px, env(safe-area-inset-top));
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 max(14px, env(safe-area-inset-left)) 0 max(14px, env(safe-area-inset-right));
+      pointer-events: none;
+      font-variant-numeric: tabular-nums;
+    }
+    .pill {
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 999px;
+      padding: 8px 14px;
+      backdrop-filter: blur(8px);
+      font-size: 15px;
+      letter-spacing: 0.02em;
+    }
+    .pill strong { color: var(--gold); font-weight: 700; }
+    .hearts { letter-spacing: 2px; color: var(--rose); }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: radial-gradient(ellipse at center, rgba(12,8,28,0.28), rgba(6,4,16,0.72));
+    }
+    .card {
+      width: min(440px, 100%);
+      background: rgba(18, 12, 40, 0.88);
+      border: 1px solid rgba(255, 220, 160, 0.22);
+      border-radius: 22px;
+      padding: 28px 24px 22px;
+      text-align: center;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+      backdrop-filter: blur(10px);
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: clamp(28px, 6vw, 40px);
+      letter-spacing: -0.03em;
+    }
+    .tag {
+      margin: 0 0 14px;
+      color: var(--gold);
+      font-size: 13px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+    p { margin: 0 0 16px; color: var(--muted); line-height: 1.5; }
+    .controls-hint {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+      font-size: 13px;
+      color: #ddd7f6;
+    }
+    .controls-hint span {
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 999px;
+      padding: 4px 10px;
+    }
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 28px;
+      font: inherit;
+      font-weight: 700;
+      color: #241608;
+      background: linear-gradient(180deg, #ffe29a, #ffb347);
+      cursor: pointer;
+      box-shadow: 0 8px 0 #c47a1a, 0 14px 30px rgba(255, 179, 71, 0.25);
+    }
+    button:active { transform: translateY(3px); box-shadow: 0 5px 0 #c47a1a; }
+    .stats { margin-top: 14px; color: var(--muted); font-size: 14px; }
+    .touch {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: max(16px, env(safe-area-inset-bottom));
+      display: none;
+      justify-content: space-between;
+      padding: 0 18px;
+      pointer-events: none;
+    }
+    .touch button {
+      pointer-events: auto;
+      width: 84px;
+      height: 84px;
+      border-radius: 24px;
+      font-size: 32px;
+      padding: 0;
+      background: rgba(255,255,255,0.12);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.2);
+      box-shadow: none;
+    }
+    @media (pointer: coarse) {
+      .touch { display: flex; }
+    }
+    .hidden { display: none !important; }
+    .flash { animation: pop 280ms ease; }
+    @keyframes pop {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.12); }
+      100% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game" width="540" height="960"></canvas>
+    <div class="hud">
+      <div class="pill">Score <strong id="score">0</strong></div>
+      <div class="pill hearts" id="hearts" aria-label="hearts">♥♥♥</div>
+      <div class="pill">Best <strong id="best">0</strong></div>
+    </div>
+    <div class="overlay" id="start">
+      <div class="card">
+        <div class="tag">Night delivery</div>
+        <h1>Moonlight Courier</h1>
+        <p>Ride a tiny scooter through a dreamy city. Scoop glowing parcels, dodge sleepy cats, cones, and puddles. Three hearts. How many deliveries can you make?</p>
+        <div class="controls-hint">
+          <span>← → or A D</span>
+          <span>Swipe or tap sides</span>
+        </div>
+        <button id="start-btn" type="button">Start delivery</button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="over">
+      <div class="card">
+        <div class="tag">Shift over</div>
+        <h1>Parcels dropped</h1>
+        <p id="over-copy">The city keeps glowing. Ready for another run?</p>
+        <div class="stats">Delivered <strong id="final-score">0</strong> · Best <strong id="final-best">0</strong></div>
+        <div style="height:16px"></div>
+        <button id="restart-btn" type="button">Ride again</button>
+      </div>
+    </div>
+    <div class="touch" id="touch">
+      <button type="button" id="left-btn" aria-label="Move left">←</button>
+      <button type="button" id="right-btn" aria-label="Move right">→</button>
+    </div>
+  </div>
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("best");
+    const heartsEl = document.getElementById("hearts");
+    const startEl = document.getElementById("start");
+    const overEl = document.getElementById("over");
+    const finalScoreEl = document.getElementById("final-score");
+    const finalBestEl = document.getElementById("final-best");
+    const overCopy = document.getElementById("over-copy");
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const LANES = 3;
+    const BEST_KEY = "moonlight-courier-best";
+
+    const state = {
+      mode: "start",
+      lane: 1,
+      targetLane: 1,
+      x: 0,
+      hearts: 3,
+      score: 0,
+      best: 0,
+      speed: 280,
+      distance: 0,
+      invuln: 0,
+      spawn: 0,
+      entities: [],
+      particles: [],
+      floaters: [],
+      shake: 0,
+      flash: 0,
+      time: 0,
+      last: 0,
+      stars: [],
+      windows: [],
+      moonPhase: 0
+    };
+
+    function laneX(i) {
+      const margin = 70;
+      const span = W - margin * 2;
+      return margin + (span * i) / (LANES - 1);
+    }
+
+    function loadBest() {
+      try {
+        state.best = Number(localStorage.getItem(BEST_KEY)) || 0;
+      } catch (_) {
+        state.best = 0;
+      }
+      bestEl.textContent = String(state.best);
+    }
+
+    function saveBest() {
+      if (state.score > state.best) {
+        state.best = state.score;
+        try { localStorage.setItem(BEST_KEY, String(state.best)); } catch (_) {}
+      }
+      bestEl.textContent = String(state.best);
+    }
+
+    function resetRun() {
+      state.lane = 1;
+      state.targetLane = 1;
+      state.x = laneX(1);
+      state.hearts = 3;
+      state.score = 0;
+      state.speed = 280;
+      state.distance = 0;
+      state.invuln = 0;
+      state.spawn = 0.4;
+      state.entities = [];
+      state.particles = [];
+      state.floaters = [];
+      state.shake = 0;
+      state.flash = 0;
+      state.time = 0;
+      scoreEl.textContent = "0";
+      scoreEl.parentElement.classList.remove("flash");
+      renderHearts();
+    }
+
+    function renderHearts() {
+      heartsEl.textContent = "♥".repeat(state.hearts) + "♡".repeat(Math.max(0, 3 - state.hearts));
+    }
+
+    function burst(x, y, color, n, speed) {
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const v = speed * (0.4 + Math.random());
+        state.particles.push({
+          x, y,
+          vx: Math.cos(a) * v,
+          vy: Math.sin(a) * v - 40,
+          life: 0.45 + Math.random() * 0.35,
+          age: 0,
+          color,
+          r: 2 + Math.random() * 3
+        });
+      }
+    }
+
+    function floater(text, x, y, color) {
+      state.floaters.push({ text, x, y, vy: -46, life: 0.8, age: 0, color });
+    }
+
+    function spawnEntity() {
+      const kinds = ["parcel", "parcel", "cat", "cone", "puddle"];
+      if (state.score > 8) kinds.push("cat", "cone");
+      if (state.score > 16) kinds.push("puddle");
+      const kind = kinds[(Math.random() * kinds.length) | 0];
+      let lane = (Math.random() * LANES) | 0;
+      const recent = state.entities.filter((e) => e.y < 180);
+      if (recent.length && recent.every((e) => e.kind !== "parcel") && Math.random() < 0.55) {
+        lane = recent[0].lane === 1 ? (Math.random() < 0.5 ? 0 : 2) : 1;
+      }
+      const blocked = new Set(recent.filter((e) => e.kind !== "parcel").map((e) => e.lane));
+      if (blocked.size >= 2 && blocked.has(lane) && kind !== "parcel") {
+        for (let i = 0; i < LANES; i++) if (!blocked.has(i)) lane = i;
+      }
+      state.entities.push({
+        kind,
+        lane,
+        y: -70,
+        wobble: Math.random() * Math.PI * 2,
+        spin: Math.random() * Math.PI * 2
+      });
+    }
+
+    function hitPlayer(ent) {
+      if (state.invuln > 0 || state.mode !== "play") return;
+      state.hearts -= 1;
+      state.invuln = 1.15;
+      state.shake = 14;
+      state.flash = 0.25;
+      renderHearts();
+      heartsEl.classList.remove("flash");
+      void heartsEl.offsetWidth;
+      heartsEl.classList.add("flash");
+      burst(state.x, playerY(), "#ff7aa2", 18, 180);
+      floater("-1 ♥", state.x, playerY() - 30, "#ff9bb8");
+      ent.dead = true;
+      if (state.hearts <= 0) endGame();
+    }
+
+    function collect(ent) {
+      state.score += 1;
+      scoreEl.textContent = String(state.score);
+      scoreEl.parentElement.classList.remove("flash");
+      void scoreEl.parentElement.offsetWidth;
+      scoreEl.parentElement.classList.add("flash");
+      burst(laneX(ent.lane), ent.y, "#ffe08a", 16, 160);
+      floater("+1", laneX(ent.lane), ent.y, "#ffe29a");
+      ent.dead = true;
+      state.speed = 280 + Math.min(420, state.score * 14);
+      saveBest();
+    }
+
+    function endGame() {
+      state.mode = "over";
+      saveBest();
+      finalScoreEl.textContent = String(state.score);
+      finalBestEl.textContent = String(state.best);
+      overCopy.textContent = state.score === 0
+        ? "The parcels are still waiting. Give the night another try."
+        : "You delivered " + state.score + " glowing parcel" + (state.score === 1 ? "" : "s") + " before the city caught up.";
+      overEl.classList.remove("hidden");
+    }
+
+    function startGame() {
+      resetRun();
+      state.mode = "play";
+      startEl.classList.add("hidden");
+      overEl.classList.add("hidden");
+    }
+
+    function move(dir) {
+      if (state.mode === "start") startGame();
+      if (state.mode !== "play") return;
+      state.targetLane = Math.max(0, Math.min(LANES - 1, state.targetLane + dir));
+    }
+
+    function playerY() { return H * 0.78; }
+
+    function update(dt) {
+      state.time += dt;
+      state.moonPhase += dt * 0.15;
+      const target = laneX(state.targetLane);
+      state.x += (target - state.x) * Math.min(1, dt * 14);
+      if (state.mode !== "play") {
+        driftBackdrop(dt * 40);
+        return;
+      }
+      state.distance += state.speed * dt;
+      state.invuln = Math.max(0, state.invuln - dt);
+      state.shake = Math.max(0, state.shake - dt * 28);
+      state.flash = Math.max(0, state.flash - dt);
+      driftBackdrop(state.speed * dt);
+
+      state.spawn -= dt;
+      if (state.spawn <= 0) {
+        spawnEntity();
+        const gap = Math.max(0.42, 1.05 - state.score * 0.03);
+        state.spawn = gap * (0.75 + Math.random() * 0.5);
+      }
+
+      const py = playerY();
+      for (const ent of state.entities) {
+        ent.y += state.speed * dt;
+        ent.wobble += dt * 3;
+        if (ent.dead) continue;
+        const dx = Math.abs(laneX(ent.lane) - state.x);
+        const dy = Math.abs(ent.y - py);
+        const close = dx < 42 && dy < 36;
+        if (!close) continue;
+        if (ent.kind === "parcel") collect(ent);
+        else hitPlayer(ent);
+      }
+      state.entities = state.entities.filter((e) => !e.dead && e.y < H + 80);
+
+      for (const p of state.particles) {
+        p.age += dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 220 * dt;
+      }
+      state.particles = state.particles.filter((p) => p.age < p.life);
+      for (const f of state.floaters) {
+        f.age += dt;
+        f.y += f.vy * dt;
+      }
+      state.floaters = state.floaters.filter((f) => f.age < f.life);
+    }
+
+    function driftBackdrop(px) {
+      for (const s of state.stars) s.y = (s.y + px * s.parallax) % (H + 20);
+      for (const w of state.windows) w.y = (w.y + px * 0.55) % (H + 40);
+    }
+
+    function makeBackdrop() {
+      state.stars = [];
+      for (let i = 0; i < 70; i++) {
+        state.stars.push({
+          x: Math.random() * W,
+          y: Math.random() * H,
+          r: Math.random() * 1.6 + 0.4,
+          parallax: 0.08 + Math.random() * 0.18,
+          a: 0.3 + Math.random() * 0.7
+        });
+      }
+      state.windows = [];
+      for (let i = 0; i < 28; i++) {
+        const side = i % 2 === 0 ? 0 : 1;
+        state.windows.push({
+          x: side === 0 ? 8 + Math.random() * 36 : W - 44 - Math.random() * 36,
+          y: Math.random() * H,
+          w: 10 + Math.random() * 14,
+          h: 14 + Math.random() * 18,
+          hue: 28 + Math.random() * 30,
+          lit: Math.random() > 0.25
+        });
+      }
+    }
+
+    function roundRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    function drawBackdrop() {
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, "#141033");
+      g.addColorStop(0.45, "#241848");
+      g.addColorStop(1, "#120c22");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+
+      const moonX = W * 0.72;
+      const moonY = 120 + Math.sin(state.moonPhase) * 6;
+      const glow = ctx.createRadialGradient(moonX, moonY, 10, moonX, moonY, 160);
+      glow.addColorStop(0, "rgba(255, 236, 190, 0.55)");
+      glow.addColorStop(1, "rgba(255, 236, 190, 0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, W, 360);
+      ctx.fillStyle = "#fff4d2";
+      ctx.beginPath();
+      ctx.arc(moonX, moonY, 36, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(40, 30, 70, 0.18)";
+      ctx.beginPath();
+      ctx.arc(moonX + 12, moonY - 6, 28, 0, Math.PI * 2);
+      ctx.fill();
+
+      for (const s of state.stars) {
+        ctx.globalAlpha = s.a * (0.65 + 0.35 * Math.sin(state.time * 2 + s.x));
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(s.x, s.y - 10, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      ctx.fillStyle = "#1a1230";
+      ctx.fillRect(0, 0, 58, H);
+      ctx.fillRect(W - 58, 0, 58, H);
+      for (const w of state.windows) {
+        ctx.fillStyle = w.lit ? "hsla(" + w.hue + ", 90%, 68%, 0.85)" : "rgba(40,30,60,0.7)";
+        roundRect(w.x, w.y - 20, w.w, w.h, 2);
+        ctx.fill();
+      }
+
+      const road = ctx.createLinearGradient(0, 0, 0, H);
+      road.addColorStop(0, "#2a2148");
+      road.addColorStop(1, "#161028");
+      ctx.fillStyle = road;
+      roundRect(58, -20, W - 116, H + 40, 28);
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(255,255,255,0.16)";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([18, 22]);
+      ctx.lineDashOffset = -((state.distance || state.time * 40) % 40);
+      for (let i = 0; i < LANES - 1; i++) {
+        const x = (laneX(i) + laneX(i + 1)) / 2;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, H);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+
+    function drawParcel(x, y, spin) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(Math.sin(spin) * 0.08);
+      ctx.shadowColor = "#ffd36a";
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = "#ffd36a";
+      roundRect(-16, -14, 32, 28, 6);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#c9842a";
+      ctx.fillRect(-2, -14, 4, 28);
+      ctx.fillRect(-16, -2, 32, 4);
+      ctx.fillStyle = "#fff6d8";
+      ctx.fillRect(-6, -18, 12, 6);
+      ctx.restore();
+    }
+
+    function drawCat(x, y, wobble) {
+      ctx.save();
+      ctx.translate(x, y + Math.sin(wobble) * 2);
+      ctx.fillStyle = "#3a3158";
+      roundRect(-20, -8, 40, 22, 10);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(10, -10, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffd6e8";
+      ctx.beginPath();
+      ctx.moveTo(4, -18); ctx.lineTo(8, -10); ctx.lineTo(2, -10); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(16, -18); ctx.lineTo(18, -10); ctx.lineTo(12, -10); ctx.fill();
+      ctx.fillStyle = "#ffd36a";
+      ctx.beginPath();
+      ctx.arc(14, -10, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#d7c8ff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-18, -2);
+      ctx.quadraticCurveTo(-30, -16 + Math.sin(wobble) * 6, -22, -18);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawCone(x, y) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = "#ff7a45";
+      ctx.beginPath();
+      ctx.moveTo(0, -22);
+      ctx.lineTo(16, 14);
+      ctx.lineTo(-16, 14);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(-10, -2, 20, 5);
+      ctx.fillStyle = "#2a2144";
+      roundRect(-18, 12, 36, 7, 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawPuddle(x, y, wobble) {
+      ctx.save();
+      ctx.translate(x, y + 8);
+      ctx.fillStyle = "rgba(120, 190, 255, 0.35)";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 28, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(210, 235, 255, " + (0.35 + 0.25 * Math.sin(wobble)) + ")";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 22, 7, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawPlayer(x, y) {
+      const blink = state.invuln > 0 && Math.floor(state.time * 16) % 2 === 0;
+      if (blink) return;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = "rgba(0,0,0,0.25)";
+      ctx.beginPath();
+      ctx.ellipse(0, 28, 22, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#5b4bff";
+      roundRect(-18, 6, 40, 12, 6);
+      ctx.fill();
+      ctx.fillStyle = "#d9d3ff";
+      ctx.beginPath();
+      ctx.arc(-14, 18, 7, 0, Math.PI * 2);
+      ctx.arc(16, 18, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#2a2144";
+      ctx.beginPath();
+      ctx.arc(-14, 18, 3, 0, Math.PI * 2);
+      ctx.arc(16, 18, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ff8fb3";
+      roundRect(-8, -16, 18, 22, 8);
+      ctx.fill();
+      ctx.fillStyle = "#ffe0ec";
+      ctx.beginPath();
+      ctx.arc(2, -20, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#3a3158";
+      ctx.fillRect(-8, -30, 20, 8);
+      ctx.fillStyle = "#ffd36a";
+      ctx.fillRect(8, -8, 10, 8);
+      ctx.restore();
+    }
+
+    function drawFx() {
+      for (const p of state.particles) {
+        const t = 1 - p.age / p.life;
+        ctx.globalAlpha = Math.max(0, t);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * t, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.font = "700 22px Segoe UI, sans-serif";
+      ctx.textAlign = "center";
+      for (const f of state.floaters) {
+        ctx.globalAlpha = Math.max(0, 1 - f.age / f.life);
+        ctx.fillStyle = f.color;
+        ctx.fillText(f.text, f.x, f.y);
+      }
+      ctx.globalAlpha = 1;
+      if (state.flash > 0) {
+        ctx.fillStyle = "rgba(255, 90, 130, " + (state.flash * 0.45) + ")";
+        ctx.fillRect(0, 0, W, H);
+      }
+    }
+
+    function draw() {
+      const sx = state.shake ? (Math.random() - 0.5) * state.shake : 0;
+      const sy = state.shake ? (Math.random() - 0.5) * state.shake : 0;
+      ctx.setTransform(1, 0, 0, 1, sx, sy);
+      drawBackdrop();
+      for (const ent of state.entities) {
+        const x = laneX(ent.lane);
+        if (ent.kind === "parcel") drawParcel(x, ent.y, ent.spin + state.time * 3);
+        else if (ent.kind === "cat") drawCat(x, ent.y, ent.wobble);
+        else if (ent.kind === "cone") drawCone(x, ent.y);
+        else drawPuddle(x, ent.y, ent.wobble);
+      }
+      if (state.mode === "play" || state.mode === "over") drawPlayer(state.x, playerY());
+      else drawPlayer(laneX(1) + Math.sin(state.time * 2) * 6, playerY());
+      drawFx();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+
+    function frame(ts) {
+      if (!state.last) state.last = ts;
+      let dt = (ts - state.last) / 1000;
+      state.last = ts;
+      if (dt > 0.05) dt = 0.05;
+      update(dt);
+      draw();
+      requestAnimationFrame(frame);
+    }
+
+    document.getElementById("start-btn").addEventListener("click", startGame);
+    document.getElementById("restart-btn").addEventListener("click", startGame);
+    document.getElementById("left-btn").addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      move(-1);
+    });
+    document.getElementById("right-btn").addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      move(1);
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") {
+        e.preventDefault();
+        move(-1);
+      } else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") {
+        e.preventDefault();
+        move(1);
+      } else if (e.key === "Enter" || e.key === " ") {
+        if (state.mode !== "play") {
+          e.preventDefault();
+          startGame();
+        }
+      }
+    });
+
+    let touchX = null;
+    canvas.addEventListener("pointerdown", (e) => {
+      if (state.mode !== "play") {
+        startGame();
+        return;
+      }
+      touchX = e.clientX;
+      const rect = canvas.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * W;
+      if (x < W * 0.5) move(-1);
+      else move(1);
+    });
+    canvas.addEventListener("pointerup", (e) => {
+      if (touchX == null || state.mode !== "play") { touchX = null; return; }
+      const dx = e.clientX - touchX;
+      if (Math.abs(dx) > 30) move(dx < 0 ? -1 : 1);
+      touchX = null;
+    });
+
+    loadBest();
+    makeBackdrop();
+    resetRun();
+    requestAnimationFrame(frame);
+  </script>
+</body>
+</html>
