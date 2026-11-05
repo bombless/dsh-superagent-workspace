@@ -1,22 +1,134 @@
-name: Build and deploy
+name: Publish game package
 
 on:
-  push:
-    branches: ["main"]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish the built package to the production game library"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: static-game-deploy
-  cancel-in-progress: true
+  group: game-package-publish
+  cancel-in-progress: false
 
 jobs:
-  deploy:
-    uses: bombless/caddy-webhook/.github/workflows/deploy-static.yml@152815348df89e509f7491009014640a2f32b622
-    with:
-      output_dir: "."
-    secrets:
-      DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
-      DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Build WASM game
+        run: cargo build --release --target wasm32-unknown-unknown
+
+      - name: Assemble game package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf package game-package.zip
+          mkdir package
+          cp manifest.json package/manifest.json
+          cp target/wasm32-unknown-unknown/release/starlight_catch.wasm package/game.wasm
+          test -s package/game.wasm
+
+      - name: Validate game package
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const manifest = JSON.parse(readFileSync('package/manifest.json', 'utf8'));
+          if (manifest.manifestVersion !== 1) throw new Error('unsupported manifestVersion');
+          if (manifest.pluginType !== 'wasm') throw new Error('pluginType must be wasm');
+          if (manifest.entry !== 'game.wasm') throw new Error('entry must be game.wasm');
+          if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(manifest.id)) throw new Error('invalid id');
+          if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(manifest.version)) throw new Error('invalid version');
+          const display = manifest.runtime.display;
+          const wasm = manifest.runtime.wasm;
+          if (!display || display.width !== 320 || display.height !== 180) throw new Error('unexpected display');
+          if (!wasm || wasm.abi !== 'bombless-game-abi' || wasm.abiVersion !== 1 || wasm.renderMode !== 'rgba') throw new Error('unexpected wasm runtime');
+          if (wasm.maxOutputBytes < display.width * display.height * 4) throw new Error('maxOutputBytes too small');
+          const bytes = readFileSync('package/' + manifest.entry);
+          const module = new WebAssembly.Module(bytes);
+          const imports = WebAssembly.Module.imports(module);
+          if (imports.length) throw new Error('WASM imports are not permitted: ' + JSON.stringify(imports));
+          const exports = new Set(WebAssembly.Module.exports(module).map(entry => entry.name));
+          const required = [
+            'game_abi_version', 'game_init', 'game_update', 'game_input', 'game_render', 'game_shutdown',
+            'game_get_width', 'game_get_height', 'game_get_render_buffer_ptr', 'game_get_render_buffer_len',
+            'game_get_config_buffer_ptr', 'game_get_config_buffer_capacity',
+            'game_get_input_buffer_ptr', 'game_get_input_buffer_capacity'
+          ];
+          for (const name of required) if (!exports.has(name)) throw new Error('missing export: ' + name);
+          if (!exports.has('memory')) throw new Error('missing exported memory');
+          console.log(`Validated ${manifest.id}@${manifest.version}: ${bytes.length} bytes, no imports, ${exports.size} exports`);
+          NODE
+
+      - name: Create package archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd package && zip -qr ../game-package.zip .)
+          test -s game-package.zip
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: starlight-catch-package
+          path: game-package.zip
+          if-no-files-found: error
+
+      - name: Validate deployment configuration
+        if: ${{ inputs.publish }}
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          GAME_DEPLOY_WEBHOOK_URL: ${{ secrets.GAME_DEPLOY_WEBHOOK_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOY_TOKEN:-}" || { echo "::error::DEPLOY_TOKEN secret is required"; exit 1; }
+          test -n "${GAME_DEPLOY_WEBHOOK_URL:-}" || { echo "::error::GAME_DEPLOY_WEBHOOK_URL secret is required"; exit 1; }
+          echo "::add-mask::${DEPLOY_TOKEN}"
+          node --input-type=module <<'NODE'
+          const url = new URL(process.env.GAME_DEPLOY_WEBHOOK_URL);
+          if (url.protocol !== 'https:' || !url.pathname.endsWith('/_deploy/game') || url.username || url.password) {
+            throw new Error('GAME_DEPLOY_WEBHOOK_URL must be HTTPS and end with /_deploy/game');
+          }
+          NODE
+
+      - name: Publish immutable game package
+        if: ${{ inputs.publish }}
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          GAME_DEPLOY_WEBHOOK_URL: ${{ secrets.GAME_DEPLOY_WEBHOOK_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::add-mask::${DEPLOY_TOKEN}"
+          body="$(mktemp)"
+          trap 'rm -f "$body"' EXIT
+          status="$(curl --http1.1 --tlsv1.2 --tls-max 1.2 --silent --show-error --retry 0 --connect-timeout 15 --max-time 300 \
+            --output "$body" --write-out '%{http_code}' \
+            -X POST -H "Authorization: Bearer ${DEPLOY_TOKEN}" \
+            -H 'Content-Type: application/zip' --data-binary @game-package.zip \
+            "$GAME_DEPLOY_WEBHOOK_URL")"
+          cat "$body"
+          echo
+          case "$status" in
+            2*) echo "Game package published." ;;
+            409) echo "::error::This game ID/version has already been published."; exit 1 ;;
+            400) echo "::error::Webhook rejected the package ZIP or manifest."; exit 1 ;;
+            401) echo "::error::Webhook rejected DEPLOY_TOKEN."; exit 1 ;;
+            413) echo "::error::Package upload exceeds the webhook size limit."; exit 1 ;;
+            *) echo "::error::Game package publication failed with HTTP $status."; exit 1 ;;
+          esac

@@ -1,0 +1,25 @@
+{
+  "manifestVersion": 1,
+  "id": "starlight-catch",
+  "name": "Starlight Catch",
+  "version": "1.0.0",
+  "pluginType": "wasm",
+  "entry": "game.wasm",
+  "runtime": {
+    "apiVersion": "1",
+    "display": {
+      "width": 320,
+      "height": 180,
+      "pixelScale": "fit",
+      "orientation": "landscape"
+    },
+    "capabilities": ["input.keyboard", "input.pointer"],
+    "wasm": {
+      "abi": "bombless-game-abi",
+      "abiVersion": 1,
+      "maxMemoryPages": 256,
+      "maxOutputBytes": 230400,
+      "renderMode": "rgba"
+    }
+  }
+}
