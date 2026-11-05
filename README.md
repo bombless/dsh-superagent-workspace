@@ -52,7 +52,7 @@ Never print either secret in logs or commit it to the repository. The workflow s
 ### Deployment troubleshooting
 
 - If the workflow says `GAME_DEPLOY_WEBHOOK_URL` or `DEPLOY_TOKEN` is missing, add that Actions secret. The workflow stops before contacting the webhook.
-- If curl exits 6, 7, 28, or 35, the failure is DNS, TCP, timeout, or TLS. Fix the secret URL or the webhook's HTTPS endpoint. Do not disable TLS verification.
+- If curl exits 6, 7, 28, or 35, the failure is DNS, TCP, timeout, or TLS. Fix the secret URL or the webhook's HTTPS endpoint. Do not disable TLS verification. GitHub-hosted runners currently cannot complete a connection to this host: HTTPS is reset during TLS and plain HTTP times out. A runner that can reach the host is required before this workflow can publish.
 - If the webhook returns HTTP 401, `DEPLOY_TOKEN` does not match the server. The token value is not printed.
 - HTTP 400 means the webhook rejected the archive or manifest. HTTP 409 means this ID and version was already published. HTTP 413 means the archive exceeds the upload limit.
 - If the package publishes but assets return 404, check that every asset URL is relative to the package.
