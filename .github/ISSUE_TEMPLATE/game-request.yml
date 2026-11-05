@@ -1,8 +1,6 @@
 name: New game request
 description: Request a new game for the Bombless Vue 3 game host.
 title: "Game request: "
-labels:
-  - game-request
 body:
   - type: markdown
     attributes:
