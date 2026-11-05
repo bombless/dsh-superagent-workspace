@@ -1,0 +1,109 @@
+name: New game request
+description: Request a new game for the Bombless Vue 3 game host.
+title: "Game request: "
+labels:
+  - game-request
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the game you want built. The coding agent will use the repository's `AGENTS.md` and the Bombless Vue 3 runtime contract automatically. You do not need to repeat technical integration requirements here.
+
+  - type: textarea
+    id: concept
+    attributes:
+      label: Game idea
+      description: What is the game about? Describe the core idea in a few sentences.
+      placeholder: "A cozy puzzle game where..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: gameplay
+    attributes:
+      label: Gameplay and rules
+      description: What does the player do? How does a round work, and how does the player win, lose, or make progress?
+      placeholder: |
+        - Main action:
+        - Goal:
+        - Win/lose conditions:
+        - Difficulty or progression:
+    validations:
+      required: true
+
+  - type: textarea
+    id: controls
+    attributes:
+      label: Controls
+      description: Describe the expected controls. The agent should support touch where appropriate.
+      placeholder: |
+        - Desktop:
+        - Mobile / touch:
+    validations:
+      required: false
+
+  - type: dropdown
+    id: devices
+    attributes:
+      label: Target devices
+      description: Select all device types the game should support.
+      multiple: true
+      options:
+        - Desktop
+        - Mobile phone
+        - Tablet
+        - Both mouse and touch
+    validations:
+      required: false
+
+  - type: textarea
+    id: visual_style
+    attributes:
+      label: Visual style and mood
+      description: Describe the look, atmosphere, colors, camera perspective, or provide reference links.
+      placeholder: "Pixel art, warm colors, top-down view..."
+    validations:
+      required: false
+
+  - type: textarea
+    id: audio
+    attributes:
+      label: Audio
+      description: Should the game have music or sound effects? Describe the desired feel. Audio must use the platform runtime API and may be unavailable if the host does not grant the capability.
+      placeholder: "Short sound effects for actions; no background music."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: persistence
+    attributes:
+      label: Data to remember
+      description: Select anything the game should save between sessions. Persistence must use the platform storage API.
+      options:
+        - label: Best score / high score
+        - label: Progress or unlocked levels
+        - label: Settings (sound, difficulty, etc.)
+        - label: Player preferences
+        - label: Nothing needs to be saved
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How will you decide the game is finished? List the important things that must work.
+      placeholder: |
+        - [ ] The game can be started, paused, resumed, and ended.
+        - [ ] The main gameplay loop works.
+        - [ ] The layout works on the selected devices.
+        - [ ] ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References and extra notes
+      description: Add links, sketches, examples, or anything else the agent should know.
+      placeholder: "Reference URLs, inspiration, things to avoid..."
+    validations:
+      required: false
