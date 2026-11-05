@@ -30,22 +30,23 @@ const GAME_ERR_CAPACITY: i32 = -3;
 // Buffers
 // ---------------------------------------------------------------------------
 
+static mut FRAMEBUFFER: [u8; FRAME_BYTES] = [0u8; FRAME_BYTES];
+static mut CONFIG_BUFFER: [u8; CONFIG_CAP] = [0u8; CONFIG_CAP];
+static mut INPUT_BUFFER: [u8; INPUT_CAP] = [0u8; INPUT_CAP];
+
 fn framebuffer() -> &'static mut [u8] {
-    static BUFFER: OnceLock<Box<[u8]>> = OnceLock::new();
-    BUFFER.get_or_init(|| vec![0u8; FRAME_BYTES].into_boxed_slice());
-    BUFFER.get_mut().expect("framebuffer initialized").as_mut()
+    // SAFETY: the module is single-threaded and every ABI call is sequential.
+    unsafe { &mut *core::ptr::addr_of_mut!(FRAMEBUFFER) }
 }
 
 fn config_buffer() -> &'static mut [u8] {
-    static BUFFER: OnceLock<Box<[u8]>> = OnceLock::new();
-    BUFFER.get_or_init(|| vec![0u8; CONFIG_CAP].into_boxed_slice());
-    BUFFER.get_mut().expect("config buffer initialized").as_mut()
+    // SAFETY: see `framebuffer`.
+    unsafe { &mut *core::ptr::addr_of_mut!(CONFIG_BUFFER) }
 }
 
 fn input_buffer() -> &'static mut [u8] {
-    static BUFFER: OnceLock<Box<[u8]>> = OnceLock::new();
-    BUFFER.get_or_init(|| vec![0u8; INPUT_CAP].into_boxed_slice());
-    BUFFER.get_mut().expect("input buffer initialized").as_mut()
+    // SAFETY: see `framebuffer`.
+    unsafe { &mut *core::ptr::addr_of_mut!(INPUT_BUFFER) }
 }
 
 thread_local! {
@@ -245,8 +246,8 @@ fn player_movement(
         return;
     }
     let speed = 132.0;
-    let mut dx = 0.0;
-    let mut dy = 0.0;
+    let mut dx: f32 = 0.0;
+    let mut dy: f32 = 0.0;
     if held.left {
         dx -= 1.0;
     }
@@ -612,8 +613,8 @@ fn draw_char(buffer: &mut [u8], x: i32, y: i32, ch: char, scale: i32, color: [u8
             if bits & (1 << (2 - column)) != 0 {
                 fill_rect(
                     buffer,
-                    x + column * scale,
-                    y + row * scale,
+                    x + column as i32 * scale,
+                    y + row as i32 * scale,
                     scale,
                     scale,
                     color,
