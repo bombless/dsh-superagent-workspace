@@ -63,8 +63,11 @@ jobs:
           origin="${GAME_DEPLOY_WEBHOOK_URL%/_deploy/game}"
           getent hosts "${origin#https://}" || { echo "::error::Game webhook host did not resolve."; exit 1; }
           curl --http1.1 --silent --show-error --connect-timeout 15 --max-time 30 \
+            --output /dev/null --write-out 'control HTTP %{http_code}\n' \
+            https://github.com/ || true
+          curl --http1.1 --silent --show-error --connect-timeout 15 --max-time 30 \
             --output /dev/null --write-out 'registry HTTP %{http_code}\n' \
-            "${origin}/_games/registry.json"
+            "${origin}/_games/registry.json" || true
 
       - name: Publish immutable game package
         env:
