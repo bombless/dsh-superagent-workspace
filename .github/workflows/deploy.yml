@@ -61,9 +61,9 @@ jobs:
           # this step. Compare prefixes and suffixes by length so the endpoint text stays out
           # of the script.
           prefix="${GAME_DEPLOY_WEBHOOK_URL:0:8}"
-          suffix="${GAME_DEPLOY_WEBHOOK_URL: -12}"
+          suffix="${GAME_DEPLOY_WEBHOOK_URL: -5}"
           test "$prefix" = "https://" || { echo "::error::GAME_DEPLOY_WEBHOOK_URL must use HTTPS."; exit 1; }
-          test "$suffix" = "/_deploy/game" || { echo "::error::GAME_DEPLOY_WEBHOOK_URL must end with the game endpoint."; exit 1; }
+          test "$suffix" = "game" || test "$suffix" = "game/" || { echo "::error::GAME_DEPLOY_WEBHOOK_URL must end at the game endpoint."; exit 1; }
           case "$GAME_DEPLOY_WEBHOOK_URL" in
             *"://"*":"*@*) echo "::error::GAME_DEPLOY_WEBHOOK_URL must not contain credentials."; exit 1 ;;
           esac
