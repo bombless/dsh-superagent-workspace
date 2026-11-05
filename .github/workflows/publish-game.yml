@@ -32,7 +32,7 @@ jobs:
 
       - name: Build game module
         env:
-          PACKAGE_DIR: ${{ inputs.package_dir }}
+          PACKAGE_DIR: ${{ inputs.package_dir || 'games/wasm-pong' }}
         run: |
           set -euo pipefail
           test -f "$PACKAGE_DIR/manifest.json"
@@ -48,12 +48,12 @@ jobs:
 
       - name: Verify guest module
         env:
-          PACKAGE_DIR: ${{ inputs.package_dir }}
+          PACKAGE_DIR: ${{ inputs.package_dir || 'games/wasm-pong' }}
         run: node "$PACKAGE_DIR/test/headless.mjs" game-build/game.wasm
 
       - name: Package archive
         env:
-          PACKAGE_DIR: ${{ inputs.package_dir }}
+          PACKAGE_DIR: ${{ inputs.package_dir || 'games/wasm-pong' }}
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE'
