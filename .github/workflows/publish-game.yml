@@ -96,7 +96,9 @@ jobs:
           echo "::add-mask::${DEPLOY_TOKEN}"
           body="$(mktemp)"
           trap 'rm -f "$body"' EXIT
-          status="$(curl --silent --show-error --retry 0 --connect-timeout 15 --max-time 180 \
+          status="$(curl --http1.1 --tlsv1.2 --tls-max 1.2 --silent --show-error \
+            --retry 5 --retry-delay 3 --retry-all-errors \
+            --connect-timeout 15 --max-time 180 \
             --output "$body" --write-out '%{http_code}' \
             -X POST -H "Authorization: Bearer ${DEPLOY_TOKEN}" \
             -H 'Content-Type: application/zip' --data-binary @game-package.zip \
