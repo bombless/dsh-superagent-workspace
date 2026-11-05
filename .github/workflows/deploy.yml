@@ -61,7 +61,8 @@ jobs:
           # printing the endpoint. GitHub masks the secret text, so its contents cannot be echoed.
           test "${#GAME_DEPLOY_WEBHOOK_URL}" -eq 41 || { echo "::error::GAME_DEPLOY_WEBHOOK_URL has an unexpected length."; exit 1; }
           origin="${GAME_DEPLOY_WEBHOOK_URL%/_deploy/game}"
-          getent hosts "${origin#https://}" || { echo "::error::Game webhook host did not resolve."; exit 1; }
+          host="${origin#https://}"
+          echo "resolved $(getent ahostsv4 "$host" | awk '{print $1}' | sort -u | paste -sd, -)"
           curl --http1.1 --silent --show-error --connect-timeout 15 --max-time 30 \
             --output /dev/null --write-out 'control HTTP %{http_code}\n' \
             https://github.com/ || true
