@@ -1,22 +1,91 @@
-name: Build and deploy
+name: Publish game package
 
 on:
-  push:
-    branches: ["main"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: static-game-deploy
-  cancel-in-progress: true
+  group: game-package-publish
+  cancel-in-progress: false
 
 jobs:
-  deploy:
-    uses: bombless/caddy-webhook/.github/workflows/deploy-static.yml@152815348df89e509f7491009014640a2f32b622
-    with:
-      output_dir: "."
-    secrets:
-      DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
-      DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Validate game package
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f manifest.json
+          test -f index.html
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs'
+          const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'))
+          if (manifest.manifestVersion !== 1 || manifest.pluginType !== 'vue3' || manifest.entry !== 'index.html') {
+            throw new Error('manifest.json does not match the Vue 3 game package contract')
+          }
+          const html = readFileSync('index.html', 'utf8')
+          const refs = [...html.matchAll(/\b(?:src|href)=["']([^"']+)["']/g)].map((match) => match[1])
+          for (const ref of refs) {
+            if (/^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(ref)) throw new Error(`asset URL is not package-relative: ${ref}`)
+          }
+          console.log(`Validated ${manifest.id}@${manifest.version}`)
+          NODE
+
+      - name: Package game archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf package-archive game-package.zip
+          mkdir package-archive
+          cp manifest.json index.html game.js styles.css package-archive/
+          (cd package-archive && zip -qr ../game-package.zip .)
+          test -s game-package.zip
+
+      - name: Validate deployment configuration
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          GAME_DEPLOY_WEBHOOK_URL: ${{ secrets.GAME_DEPLOY_WEBHOOK_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOY_TOKEN:-}" || { echo "::error::DEPLOY_TOKEN secret is required"; exit 1; }
+          test -n "${GAME_DEPLOY_WEBHOOK_URL:-}" || { echo "::error::GAME_DEPLOY_WEBHOOK_URL secret is required"; exit 1; }
+          echo "::add-mask::${DEPLOY_TOKEN}"
+          node --input-type=module <<'NODE'
+          const url = new URL(process.env.GAME_DEPLOY_WEBHOOK_URL)
+          if (url.protocol !== 'https:' || !url.pathname.endsWith('/_deploy/game') || url.username || url.password) {
+            throw new Error('GAME_DEPLOY_WEBHOOK_URL must be HTTPS and end with /_deploy/game')
+          }
+          NODE
+
+      - name: Publish immutable game package
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          GAME_DEPLOY_WEBHOOK_URL: ${{ secrets.GAME_DEPLOY_WEBHOOK_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::add-mask::${DEPLOY_TOKEN}"
+          body="$(mktemp)"
+          trap 'rm -f "$body"' EXIT
+          status="$(curl --silent --show-error --retry 0 --connect-timeout 15 --max-time 180 \
+            --output "$body" --write-out '%{http_code}' \
+            -X POST -H "Authorization: Bearer ${DEPLOY_TOKEN}" \
+            -H 'Content-Type: application/zip' --data-binary @game-package.zip \
+            "$GAME_DEPLOY_WEBHOOK_URL")"
+          cat "$body"
+          echo
+          case "$status" in
+            2*) echo "Game package published." ;;
+            409) echo "::error::This game ID and version is already published."; exit 1 ;;
+            400) echo "::error::Webhook rejected the package ZIP or manifest."; exit 1 ;;
+            401) echo "::error::Webhook rejected DEPLOY_TOKEN."; exit 1 ;;
+            413) echo "::error::Package upload exceeds the webhook size limit."; exit 1 ;;
+            *) echo "::error::Game package publication failed with HTTP $status."; exit 1 ;;
+          esac
